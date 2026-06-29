@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年6月18日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年6月18日</p>
+            <p class="edition-desc">Linux 和自由软件周刊</p>
+            <a href="index.html" class="back-link">← 返回所有期刊</a>
+        </header>
+
+        <nav class="toc">
+            <h2>📋 目录</h2>
+            <ul>
+                <li><a href="#fedora-status">2026年 Fedora 现状</a></li>
+                <li><a href="#mthp">7.2 内核自动创建 mTHP 功能</a></li>
+                <li><a href="#overlayfs">overlayfs 更新</a></li>
+                <li><a href="#buffer-heads">buffer heads 清理工作</a></li>
+                <li><a href="#kernel-stats">7.1 内核开发统计</a></li>
+                <li><a href="#briefs">简讯板块</a></li>
+            </ul>
+        </nav>
+
+        <main class="content">
+            <article class="article" id="fedora-status">
+                <div class="article-header">
+                    <span class="article-category">发行版</span>
+                    <h2>2026年 Fedora 现状</h2>
+                    <div class="article-meta">
+                        <span class="author">作者：Joe Brockmeier</span>
+                        <span class="date">2026年6月16日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>本文内容来自 Fedora 项目领导者 Jef Spaleta 在 2026 年 Flock 大会（布拉格举办）的主题演讲，涵盖 Fedora 使用现状、贡献者增长挑战、以及项目未来规划。</p>
+
+                    <h3>📈 增长亮点</h3>
+                    <ul>
+                        <li><strong>整体增长</strong>：Fedora 使用量同比增长 9%，过去一周有接近 100 万系统上报统计</li>
+                        <li><strong>KDE Plasma 版</strong>：刚升级为正式版本，同比增长超 120%，过去一周有 15.8 万活跃系统</li>
+                        <li><strong>Workstation (GNOME) 版</strong>：同比增长 18.8%，过去一周有 29.7 万活跃系统</li>
+                        <li><strong>衍生发行版</strong>：基于 Fedora 的衍生版（如 Bazzite、Asahi Remix）同比增长超 210%，过去一周有 9.7 万活跃系统</li>
+                    </ul>
+
+                    <div class="info-box warning">
+                        <strong>⚠️ 异常点</strong>：Fedora Cloud 版活跃系统同比下降近 65%，统计数据显示异常波动，原因尚未明确。
+                    </div>
+
+                    <h3>🚨 核心挑战</h3>
+                    <p>活跃打包者数量持续下降：</p>
+                    <ul>
+                        <li>2020 年初：超 420 名打包者</li>
+                        <li>2023 年底：不足 340 名</li>
+                        <li>2026 年初：350 名 → 目前仅余 325 名</li>
+                    </ul>
+
+                    <p>Spaleta 表示尚未明确下降原因，后续计划通过以下方式解决问题：</p>
+                    <ul>
+                        <li>升级贡献者体验（迁移到基于 Forgejo 的 Fedora Forge 平台）</li>
+                        <li>优化治理流程</li>
+                        <li>拓展捐赠渠道</li>
+                        <li>推出创新沙盒机制（参考 CNCF 沙盒项目，降低创新试错成本）</li>
+                    </ul>
+
+                    <div class="info-box note">
+                        <strong>📌 争议事件</strong>：容器化滚动发行版 Fedora Hummingbird 未经过公开讨论流程，由理事会秘密投票批准使用 Fedora 商标，引发社区争议。
+                    </div>
+                </div>
+            </article>
+
+            <article class="article" id="mthp">
+                <div class="article-header">
+                    <span class="article-category">内核</span>
+                    <h2>7.2 内核自动创建 mTHP 功能</h2>
+                    <div class="article-meta">
+                        <span class="author">作者：Jonathan Corbet</span>
+                        <span class="date">2026年6月11日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Nico Pache 贡献的新特性将 <code>khugepaged</code> 内核线程的页面合并能力从仅支持 PMD 级大页扩展到支持多尺寸透明大页（mTHP），提升 mTHP 的使用透明度。</p>
+
+                    <h3>背景</h3>
+                    <p>传统大页由硬件页表层级决定，尺寸固定（通常 2MB），存在内存碎片化、内部碎片等问题；mTHP 支持软件定义的 2 的幂次尺寸，更灵活，能更好匹配处理器 TLB 合并能力、降低内存管理开销。</p>
+
+                    <h3>实现逻辑</h3>
+                    <p><code>khugepaged</code> 以 2MB 为单位扫描进程地址空间：</p>
+                    <ol>
+                        <li>先尝试合并为 PMD 级大页</li>
+                        <li>失败则逐步尝试更小的 mTHP 尺寸</li>
+                        <li>直到最小支持尺寸，避免内存浪费</li>
+                    </ol>
+
+                    <h3>问题解决</h3>
+                    <p>针对合并过程中可能出现的"尺寸蠕变"问题（多次扫描后小 mTHP 被逐步合并为大页，浪费内存），调整了 <code>max_ptes_none</code> 参数的限制规则：</p>
+                    <ul>
+                        <li>仅允许 0 或 511 两个取值用于非 PMD 尺寸的 mTHP 合并</li>
+                        <li>避免无效合并</li>
+                    </ul>
+
+                    <div class="info-box success">
+                        该补丁已迭代 19 个版本，进入 linux-next 分支，预计合入 7.2 内核合并窗口。
+                    </div>
+                </div>
+            </article>
+
+            <article class="article" id="overlayfs">
+                <div class="article-header">
+                    <span class="article-category">文件系统</span>
+                    <h2>overlayfs 更新</h2>
+                    <div class="article-meta">
+                        <span class="author">作者：Jake Edge</span>
+                        <span class="date">2026年6月12日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>来自 2026 年 Linux 存储、文件系统、内存管理与 BPF 峰会的分享，由 overlayfs 联合文件系统维护者 Amir Goldstein 介绍最新进展。</p>
+
+                    <h3>新特性</h3>
+                    <ul>
+                        <li><strong>composefs 用例支持</strong>：新增仅数据底层、支持 fs-verity 完整性校验，适配内容寻址存储场景</li>
+                        <li><strong>新挂载 API</strong>：切换到新挂载 API，解除底层数量和路径长度限制</li>
+                        <li><strong>安全性提升</strong>：支持挂载凭证与访问凭证分离</li>
+                    </ul>
+
+                    <h3>嵌套 overlayfs 支持</h3>
+                    <ul>
+                        <li>目前仅支持底层为 overlayfs</li>
+                        <li>后续计划支持上层也为 overlayfs，解决容器内运行 Docker 时的存储驱动性能问题</li>
+                        <li>考虑通过扁平化底层信息的方式避免嵌套导致的内核栈溢出问题</li>
+                    </ul>
+
+                    <h3>社区需求</h3>
+                    <ul>
+                        <li>systemd 希望获得 overlayfs 层的自省 API，方便追踪文件来源、管理 sysext 分层更新</li>
+                        <li>用户希望支持删除白名单后恢复底层文件的能力</li>
+                    </ul>
+                </div>
+            </article>
+
+            <article class="article" id="buffer-heads">
+                <div class="article-header">
+                    <span class="article-category">内核</span>
+                    <h2>buffer heads 清理工作</h2>
+                    <div class="article-meta">
+                        <span class="author">作者：Jake Edge</span>
+                        <span class="date">2026年6月17日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>来自 2026 年 LSFMM+BPF 峰会的分享，内核开发者 Jan Kara 介绍 buffer heads（块层元数据跟踪机制，历史悠久）的清理进展。</p>
+
+                    <h3>已完成工作</h3>
+                    <ul>
+                        <li>已将元数据 buffer heads 跟踪逻辑从通用 inode 结构剥离到文件系统私有部分</li>
+                        <li>未使用该功能的文件系统 inode 可减小 40 字节</li>
+                        <li>该改动已合入 7.1 内核</li>
+                    </ul>
+
+                    <h3>进行中工作</h3>
+                    <ul>
+                        <li>清理 Amiga Fast File System (AFFS) 的 buffer heads 跟踪代码（该文件系统从未实际使用跟踪信息进行 fsync 操作）</li>
+                        <li>修复 buffer heads 跟踪的竞态问题（可能导致 fsync 后元数据未写入磁盘，崩溃后数据丢失）</li>
+                        <li>除 ext4 外其他使用该机制的文件系统均受影响</li>
+                    </ul>
+
+                    <h3>未来计划</h3>
+                    <ul>
+                        <li>计划未来一年内重构 buffer heads 的锁机制，使用 RCU 替代现有的私有锁，降低复杂度</li>
+                        <li>ext4 data=journal 模式下的脏 buffer heads 脱离映射问题</li>
+                        <li>计划修改日志写入路径，使用标准回写机制处理，避免数据处于"中间状态"</li>
+                    </ul>
+                </div>
+            </article>
+
+            <article class="article" id="kernel-stats">
+                <div class="article-header">
+                    <span class="article-category">内核</span>
+                    <h2>7.1 内核开发统计</h2>
+                    <div class="article-meta">
+                        <span class="author">作者：Jonathan Corbet</span>
+                        <span class="date">2026年6月15日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>7.1 内核于 2026 年 6 月 14 日正式发布。</p>
+
+                    <h3>📊 开发数据</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>指标</th>
+                                <th>数值</th>
+                                <th>备注</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>变更集数量</td>
+                                <td>15,849</td>
+                                <td>非合并变更集</td>
+                            </tr>
+                            <tr>
+                                <td>贡献者数量</td>
+                                <td>2,479</td>
+                                <td>创历史新高（超过 7.0 的 2,362 名）</td>
+                            </tr>
+                            <tr>
+                                <td>首次贡献者</td>
+                                <td>530</td>
+                                <td>创历史新高</td>
+                            </tr>
+                            <tr>
+                                <td>Tested-by 标签</td>
+                                <td>近 8%</td>
+                                <td>提交包含测试标签的比例</td>
+                            </tr>
+                            <tr>
+                                <td>Reviewed-by 标签</td>
+                                <td>51%</td>
+                                <td>比例较之前版本偏低</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>🏆 顶级贡献者</h3>
+                    <p><strong>按变更集数量排名：</strong></p>
+                    <ol>
+                        <li>Johan Hovold (181 个)</li>
+                        <li>Thomas Weißschuh (175 个)</li>
+                        <li>Eric Biggers (168 个)</li>
+                        <li>Stefan Metzmacher (155 个)</li>
+                        <li>Krzysztof Kozlowski (148 个)</li>
+                    </ol>
+
+                    <p><strong>按修改行数排名：</strong></p>
+                    <ol>
+                        <li>Jakub Kicinski (126,367 行) - 主要删除了大量过时网络子系统代码</li>
+                        <li>Roman Li (105,777 行) - 新增 amdgpu 头文件</li>
+                        <li>Namjae Jeon (54,445 行) - 重构 NTFS 文件系统实现</li>
+                    </ol>
+
+                    <h3>🤖 LLM 辅助开发趋势</h3>
+                    <div class="info-box warning">
+                        <p>7.1 中有 <strong>299 个提交</strong>明确标注了 Assisted-by 标签，实际 LLM 参与的提交数量更高。</p>
+                        <p>首次贡献者数量创历史新高，主要由 LLM 辅助开发工具普及驱动。新贡献者主要参与文档拼写修正、冷门子系统 bug 修复。</p>
+                    </div>
+
+                    <h3>🦀 Rust 贡献</h3>
+                    <p>Rust 代码贡献的新开发者数量仍然较少，仅 5 名首次贡献者修改了 Rust 文件。</p>
+
+                    <h3>🔒 安全提醒</h3>
+                    <p>SMB 文件系统收到大量首次贡献者的安全相关 bug 修复，建议用户及时跟进内核更新。</p>
+                </div>
+            </article>
+
+            <section class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">简讯</span>
+                    <h2>简讯板块</h2>
+                </div>
+                <div class="article-body">
+                    <h3>🔐 安全相关</h3>
+                    <ul>
+                        <li><strong>PyCon US 2026 安全内容汇总</strong>：Python 软件基金会博客汇总了大会安全相关议题的幻灯片</li>
+                        <li><strong>curl 夏季暂停接收漏洞报告</strong>：2026 年 7 月 1 日至 8 月 3 日期间，无付费支持合约的用户无法提交漏洞报告。curl 8.22.0 发布时间推迟至 9 月 2 日</li>
+                    </ul>
+
+                    <h3>🐧 内核开发</h3>
+                    <ul>
+                        <li><strong>7.1 内核正式发布</strong>：新增特性包括移除 486 架构支持、新增 clone() 标志简化进程管理、BPF 支持 io_uring、ublk 用户态块驱动支持零拷贝 I/O、sched_ext 初步支持子调度器、大量交换子系统优化、完全重写的 NTFS 实现等</li>
+                        <li><strong>稳定版内核更新</strong>：7.1.1、7.0.13、6.18.36 等多个稳定版内核正在审核</li>
+                    </ul>
+
+                    <h3>📦 发行版相关</h3>
+                    <ul>
+                        <li><strong>AUR 大量包被入侵</strong>：攻击者在数百个无人维护的 AUR 包中添加恶意 npm 包 <code>atomic-lockfile</code>，可窃取敏感数据</li>
+                        <li><strong>Fedora F44 选举结果</strong>：Miro Hrončok 和 Aleksandra Fedorova 当选理事会成员</li>
+                    </ul>
+
+                    <h3>🛠️ 开发工具</h3>
+                    <ul>
+                        <li><strong>FairScan 2.0 发布</strong>：Android 端文档扫描应用新增 OCR 功能，使用 Tesseract 引擎</li>
+                        <li><strong>Firefox 152.0 发布</strong>：设置界面改版、隐私浏览模式下可关闭跟踪防护、实验性支持 JPEG XL 图片格式</li>
+                        <li><strong>Homebrew 6.0.0 发布</strong>：新增 tap 信任机制提升供应链安全、优化 Linux 沙箱</li>
+                        <li><strong>KDE Plasma 6.7 发布</strong>：每屏幕独立虚拟桌面、Union 主题系统技术预览</li>
+                    </ul>
+
+                    <h3>💬 本周引言</h3>
+                    <blockquote>
+                        <p>"Fedora 长期信奉'让用户体验不够好的开源产品，反而能推动它变好'，因此曾在同一个版本中同时推送 GNOME 3.0 和 systemd。"</p>
+                        <cite>— Adam Williamson</cite>
+                    </blockquote>
+                    <blockquote>
+                        <p>"AI 工具反而让 ARM64 开发速度略有下降，额外的代码审查也导致部分特性推迟到下一个合并窗口。"</p>
+                        <cite>— Will Deacon</cite>
+                    </blockquote>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>本文内容翻译自 <a href="https://lwn.net/Articles/1077459/" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>LWN.net 是 Linux 和自由软件社区的权威资讯来源。</p>
+            <p><a href="index.html">← 返回所有期刊</a></p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+        
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+
+        document.querySelectorAll('.toc a').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                target.scrollIntoView({ behavior: 'smooth' });
+            });
+        });
+    </script>
+</body>
+</html>

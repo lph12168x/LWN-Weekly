@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊中文版</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <p style="margin-top: 16px; font-size: 14px; opacity: 0.8;">
+                本网站提供 LWN.net 周刊的中文翻译版本
+            </p>
+        </header>
+
+        <main class="content">
+            <section class="about-section">
+                <h2>📖 关于 LWN</h2>
+                <p>LWN.net 是 Linux 和自由软件社区的权威资讯来源，提供深入的 kernel 开发、安全、发行版和开发工具相关内容。</p>
+                <p>本网站将 LWN 的免费文章翻译成中文，供中文读者阅读。所有内容遵循 Creative Commons 协议。</p>
+            </section>
+
+            <section class="editions-section">
+                <h2>📅 期刊列表</h2>
+                <div class="editions-grid">
+                    <div class="edition-card">
+                        <h3><a href="2026-06-18.html">2026年6月18日</a></h3>
+                        <p class="date">发布时间：2026年6月18日</p>
+                        <p class="summary">
+                            本期内容包括：2026年 Fedora 现状、7.2 内核 mTHP 功能、overlayfs 更新、buffer heads 清理、7.1 内核开发统计等。
+                        </p>
+                        <div class="tags">
+                            <span class="tag">内核</span>
+                            <span class="tag">发行版</span>
+                            <span class="tag">文件系统</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="links-section">
+                <h2>🔗 相关链接</h2>
+                <ul class="links-list">
+                    <li><a href="https://lwn.net" target="_blank">LWN.net 官方网站</a></li>
+                    <li><a href="https://lwn.net/Archives/" target="_blank">LWN 归档列表</a></li>
+                    <li><a href="https://github.com/lph12168x/LWN-Weekly" target="_blank">本项目的 GitHub 仓库</a></li>
+                </ul>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>更新时间：2026年6月29日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+        
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
