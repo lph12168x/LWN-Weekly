@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年7月9日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年7月9日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">内核加密的现代化进展</a></li>
+                    <li><a href="#article2">内核的 iomap 层是什么</a></li>
+                    <li><a href="#article3">限制负目录项（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article4">更快的 RCU 与无锁内存分配（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article5">两组 LLM 辅助的内存管理补丁集</a></li>
+                    <li><a href="#briefs">📝 简讯</a></li>
+                    <li><a href="#announcements">📢 公告</a></li>
+                </ul>
+            </div>
+
+            <!-- 文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">安全 / 加密</span>
+                    <h2>内核加密的现代化进展</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年7月8日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在 2026 年北美 Linux 安全峰会（Linux Security Summit North America）上，Eric Biggers 谈到了内核加密框架存在的一些问题，以及近期在添加库式 API 方面取得的进展——这些库 API 让开发者能够直接使用加密功能，而无需再走传统的 crypto API。他通过几个例子展示了原有 API 的脆弱之处，并说明了新的库式 API 如何让开发者和内核维护者的工作都变得更轻松。</p>
+
+                    <p>Biggers 首先介绍了自己。他是 Linux 内核中 crypto 库、循环冗余校验（CRC）库代码的维护者，同时也维护 fscrypt 库和 fs-verity 支持层。他表示之所以把 CRC 归到加密一类，是因为"从实现角度看它们非常相似"，而且这些代码是供内核自身使用的——用户空间有自己的一套代码。"它服务于所有需要在内核态执行这些算法的内核功能。"他说，这些用例涵盖存储或网络加密、生成随机数、检查固件完整性、防御拒绝服务攻击等等。</p>
+
+                    <h3>传统 API</h3>
+                    <p>Biggers 所说的"传统 crypto API"位于内核树顶层的 <code>crypto</code> 目录中，自 2002 年起便已存在。它既包含加密算法，也包含 CRC 等一些非加密算法。遗憾的是，他说，"这套传统 crypto API 工作得并不好。它复杂、难用，而且往往相当慢。"这一点一直如此，而且随着时间推移变得更糟。</p>
+                    <p>他说，传统 API 并不符合大多数内核开发者的需求，也没有跟上硬件的发展："具体来说，它并未针对现代系统所使用的基于 CPU 的加速做良好优化。"他还表示该框架已经过时，其 API 对较新的算法和实现策略支持不佳。</p>
+                    <p>为了佐证这一点，他举了两个在内核中使用加密算法的例子，说明"为什么传统 crypto API 并不怎么样"。他先从用密钥和数据、采用 HMAC-SHA256 计算消息认证码（MAC）说起——"这是最常见的 MAC 算法之一"。代码见其演示文稿第 5、6 页：</p>
+                    <pre><code>    static int calc_hmac(const u8 *key, size_t keylen, const u8 *data, size_t datalen, u8 out[32])
+    {
+    	struct crypto_shash *tfm;
+    	int err;
+
+    	tfm = crypto_alloc_shash("hmac(sha256)", 0, 0);
+    	if (IS_ERR(tfm)) {
+    	   pr_err("Failed to allocate hmac(sha256): %ld\n", PTR_ERR(tfm));
+    	   return PTR_ERR(tfm);
+    	}</code></pre>
+                    <p>他解释说，用传统 crypto API 获取 MAC 值，第一步是通过传入算法名称字符串，动态分配一个用于 HMAC-SHA256 的 <code>crypto_shash</code> 对象。然后必须检查错误，"因为这一步可能失败，而且经常失败"。</p>
+                    <pre><code>	err = crypto_shash_setkey(tfm, key, keylen);
+	if (!err) {
+	        SHASH_DESC_ON_STACK(desc, tfm);
+
+		desc->tfm = tfm;
+		err = crypto_shash_digest(desc, data, datalen, out);
+		shash_desc_zero(desc);
+	}
+	if (err)
+		pr_err("Failed to calculate HMAC-SHA256 value: %d\n", err);
+	crypto_free_shash(tfm);
+	return err;</code></pre>
+                    <p>下一步是在 <code>crypto_shash</code> 对象上设置密钥。这一步同样可能失败，因此需要更多的错误检查代码。接着需要分配一个同步哈希描述符；他说最简单的方式是使用 <code>SHASH_DESC_ON_STACK()</code> 宏。之后，把指向 <code>crypto_shash</code> 的指针设进去，从而初始化哈希描述符。做完这一切，才轮到调用真正计算 MAC 值的函数。计算完成后，通过对哈希描述符做"清零"（zeroize）来清除栈上的敏感数据，检查错误，最后释放 <code>crypto_shash</code>。</p>
+                    <p>Biggers 说这段代码"勉强能用"，但在合并之后常会发现 bug，因为在某些系统上分配 <code>crypto_shash</code> 会失败。修复办法是确保在 Kconfig 中启用了 <code>CRYPTO_HMAC</code> 和 <code>CRYPTO_SHA256</code>。"这一点常被忽略，因为算法是按名称加载的，所以在链接期对它们没有依赖。"代码能正常构建，却会在运行时失败，且只在部分系统上失败。而如果开发者想让代码在早期 init 调用中运行呢？"那就没辙了；传统 API 根本做不到这一点，因为 crypto API 必须先完成自身初始化。"</p>
+                    <p>性能同样不佳。他在一台运行 6.12 内核的 x86_64 系统上做了基准测试（该内核早于近期的一些优化）。"结果表明，真正用于 SHA-256 核心计算的时间只占 38%。大部分时间实际花在了传统 crypto API 的开销上。"</p>
+                    <p>他说，更好的做法是直接添加一个库函数来实现 HMAC-SHA256，而不必绕道传统 API。"它既好用得多，也高效得多。"示例（第 11 页）如下：</p>
+                    <pre><code>    hmac_sha256_usingrawkey(key, key_len, data, data_len, out);</code></pre>
+                    <p>他说这个函数是他在 6.17 内核中添加的，新 API 已经在内核中不少地方被使用。这些函数总是成功，调用者无需处理错误。"它们在内核的所有上下文中都能工作，并且使用标准的链接期依赖，因此不会在运行时失败。"此外它还更快，尤其是对较短的输入——大约是他前面提到的同一操作的 2.5 倍。"我还添加了 FIPS-140 加密算法自检，所以它应当能顺利通过 FIPS 认证。"</p>
+                    <p>他说这并非什么新思路；例如 2019 年就为 WireGuard 所用的算法添加了加密库。库在 crypto 子系统之外一直是常态；他以 <code>memcpy()</code> 为例。"它就是一个做你想做之事的函数，你不必按名称动态分配一个'内存拷贝器'对象再调用若干额外函数。"</p>
+                    <p>他还简要展示了另一个例子：用 ChaCha20-Poly1305 加密数据——这是一种带关联数据的认证加密（AEAD）算法。它以密钥、随机数（nonce）、明文和关联数据为输入，产生密文。</p>
+                    <p>用传统 crypto API，调用者必须先分配一个 AEAD 变换对象并设置密钥："一如既往，两者都可能失败，所以你得写错误处理代码，我希望你还记得测试你的错误处理代码。我相信大家都会这么做。"他指出还必须把数据放进 scatter-gather 列表而非普通缓冲区；他展示了设置 scatter 列表的示例代码（第 15 页）：</p>
+                    <pre><code>    struct scatterlist src_sg[2], dst_sg[2];
+    sg_init_table(src_sg, ARRAY_SIZE(src_sg));
+    sg_init_table(dst_sg, ARRAY_SIZE(dst_sg));
+    // 以下代码假设 ad、src、dst 均不指向 vmalloc 内存
+    sg_set_buf(&amp;src_sg[0], ad, ad_len);
+    sg_set_buf(&amp;src_sg[1], src, data_len);
+    sg_set_buf(&amp;dst_sg[0], ad, ad_len);
+    sg_set_buf(&amp;dst_sg[1], dst, data_len + crypto_aead_authsize(tfm));</code></pre>
+                    <p>而这还只是输入输出地址都已在内核直接映射中的最简单情形。"然而，如果你的任何数据在栈上或 <code>vmalloc</code> 区域的其他地方，那就自求多福了：因为在那些情况下，你需要复杂得多的代码来正确设置 scatter 列表。"Biggers 说，他还从未见过有人第一次就提交出无需修改的正确代码。</p>
+                    <p>他补充说，请求可能异步完成，因此调用者需要确保在提交请求后等待其完成再释放数据，否则会造成释放后使用（use-after-free）漏洞。</p>
+                    <p>而库式的例子再次简单得多：</p>
+                    <pre><code>    chacha20poly1305_encrypt(dst, src, src_len, ad, ad_len, nonce, key);</code></pre>
+                    <p>只需调用一个直接实现所需算法的函数即可。"和前面一样，它是同步的、返回 <code>void</code>，而且在任何上下文中都能工作。"他指出该函数是 2019 年为支持 WireGuard 而添加的，并非新东西。他近期的工作重点在于哈希和 MAC，但这个函数是个绝佳例子，因为它证明了传统 API 承受着大量早已不再必要的复杂性。</p>
+
+                    <h3>目前的现状</h3>
+                    <p>他说，截至 7.1 内核，crypto 与 CRC 库已支持大量算法，并展示了一份令人印象深刻的清单（第 19 页）。其中大约一半是在过去一年半里加入的。但仍有一些重要算法缺失，比如 AES 加密模式。"不过我正在做这件事。"</p>
+                    <p>这些库为每个算法提供一组独立的函数，从而能为每个算法提供一个良好的 API——"就是最简单、最好用、最高效的那种"。这意味着库最适合只需单一算法的内核内使用者，而这正是最常见的情况。如果某个内核功能需要支持多种算法，"你只需分发到不同的函数即可"。这听上去可能不太方便，但仍然远胜传统 API。而且传统 API 依然可用，并已在可能之处用这些库重新实现。</p>
+                    <p>Biggers 说，过去一年半里，他（连同共同维护者 Ard Biesheuvel 和 Jason Donenfeld）引入了 KUnit 测试、添加了文档、简化了架构优化代码的集成方式，并默认启用了优化。他把许多算法迁移进库中，并用库重新实现了传统 crypto API 所用的算法。"这一切带来了大量的负 diff（净删除代码），既包括 crypto 子系统本身，也包括使用加密代码的那些代码，同时还带来了性能提升，甚至修复了一些 bug。"</p>
+                    <p>他展示了一份如今改用库而非 crypto API 的内核代码清单（第 22 页），其中包括 <code>apparmor</code>、<code>btrfs</code>、<code>dm-verity</code>、<code>fscrypt</code>、<code>bluetooth</code> 等许多组件。</p>
+                    <p>此外，他说加密库还新增了一些传统 API 中没有的功能。例如，他添加了对 ML-DSA 验证的支持及相应函数。对 SHAKE128 和 SHAKE256 可扩展输出函数（XOF）的支持在 6.19 中加入。他说这些都无法塞进传统 API，因为后者假定值是定长的。"事实上，我认为传统 crypto API 甚至早于密码学家提出 XOF 这一概念。"</p>
+                    <p>Biggers 说他还添加了 SHA-256 交错哈希（interleaved hashing）支持，以加速 dm-verity 和 fs-verity。"这同样是传统 crypto API 装不下的东西。"他还提到其他几项改进，例如为 arm64、RISC-V 和 x86_64 优化 CRC；其中一例，他说"我把性能提升了 12,400%"。该性能提升是在一款最新 AMD 处理器上、对 16K 消息的 CRC64 吞吐量而言。</p>
+                    <p>在测试与代码质量方面，他的首要原则是正确性。这一点不言自明，他说。"加密代码必须正确，但即便是 CRC 这类非加密算法也必须正确，因为人们依赖它们保证数据完整性。"他欢迎优化，但优化必须有价值且可测试；他还提到自己在 7.1 内核中为加密库引入了 18 个 KUnit 测试套件，为 CRC 库引入了一个。</p>
+                    <p>KUnit 的优势之一是现在运行测试更容易了；这些测试已在多个持续集成（CI）系统中启用，包括 KernelCI。"以前这很难做到，因为传统 crypto API 使用的是一套自定义测试系统。"他希望达到 100% 的代码覆盖率；这个库已比传统 API 更接近这个目标。</p>
+                    <p>不过，仍有工作要做；架构优化代码是个难题。他说他一直在 QEMU 中测试约 50 种组合，并要求新代码也提供 QEMU 支持，以确保它确实经过测试。"我知道 Linux 对大多数设备驱动并没有这样的规定，但对加密代码，我确实认为这是正确的做法。"</p>
+
+                    <h3>何时使用？</h3>
+                    <p>那么，从事使用 crypto 或 CRC 算法的内核代码的开发者，何时应当使用这些库函数呢？"答案基本是：只要能用就用。多数情况下，你会发现库函数明显更好。"Biggers 说有两个例外：第一是加密库缺少传统 API 拥有的某个函数。他以 AES-GCM 为例。"这个我正在做。"</p>
+                    <p>另一个例外是：某个内核功能允许用户空间按名称从传统 crypto API 指定任意算法。"出于向后兼容，这类功能通常必须继续使用传统 API。"</p>
+                    <p>他建议，任何添加使用加密的新内核功能的人，都应选定一个特定算法，最多支持一小组算法。他说，历史上有一种倾向："通过接受来自用户空间的任意字符串并传给传统 crypto API，来支持所有算法。"这是个问题，因为它允许使用不安全、过时或对该功能毫无意义的算法。"比如 MD5。哦，还有 MD4，以防你觉得 MD5 太前卫了。"</p>
+                    <p>他称在每个内核功能中支持所有算法是"给用户埋下的巨大陷阱，也是内核开发者的维护负担"，会增大攻击面并引发漏洞。他强烈建议在为新功能选择算法时要深思熟虑、有主见，只选一个好算法。"记住，将来若有需要，你随时可以再加。此外，如果你需要帮助选择算法，可以联系 Linux crypto 邮件列表。"</p>
+
+                    <h3><code>AF_ALG</code></h3>
+                    <p>他说他想再点出传统 API"另一个令人兴奋的问题"：算法地址族，即 <code>AF_ALG</code>。它是 16 年前加入的，他说，"而它是个错误"。它以一种极易出 bug 的方式，把几乎全部传统 crypto API 暴露给用户空间程序，结果导致"源源不断的安全漏洞"。更糟的是，这些漏洞正变得越来越容易被发现和利用。他没有详细解释原因，但显而易见的答案是 LLM 工具被用来扫描安全漏洞。</p>
+                    <p>他说，听众们大概都听说过 Copy Fail，但过去一年里另外还有四个带有可用提权利用的 <code>AF_ALG</code> bug。好消息是，他说，<code>AF_ALG</code> 一直没有被广泛使用，"因为它提供的东西大多在用户空间也能做到"。这意味着一旦少数几个程序被改造为使用用户空间代码，Linux 发行版就可以将其禁用。</p>
+                    <p>不过，Biggers 承认在 Linux 中破坏用户空间 API"是件大事，需要社区共同努力"。他为此发出行动号召，呼吁大家帮助加固并弃用 <code>AF_ALG</code>；比如，人们可以帮忙把用户空间程序从 <code>AF_ALG</code> 迁移走，或在自己的系统上将其关闭并帮助修复由此导致的任何问题。他略带调侃地在这个积极的调子上结束——演讲到此结束。</p>
+                    <p>听众有一个问题：Biggers 具体是如何提升性能的，是在汇编层面做的吗？他回答说，大多数架构优化代码和 CRC 代码都是用汇编写的，但也有一些情况改用了编译器内建函数（intrinsics）。至此，这一场会议时间用尽。</p>
+                    <p>[感谢 Linux 基金会——LWN 的差旅赞助方——支持我前往明尼阿波利斯参加 Linux 安全峰会。]</p>
+                    <p>[18 条评论]</p>
+                </div>
+            </div>
+
+            <!-- 文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">文件系统</span>
+                    <h2>内核的 iomap 层是什么</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月6日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>关于内核文件系统实现的讨论常常会提到一个名为"iomap"的层，但真正能可靠说清 iomap 究竟是什么的人却相对不多。而这正是 LWN 存在的意义——填补这类空白。简而言之，iomap 处理的是文件系统空间（由某个感兴趣的文件及其内部偏移标识）与存储空间（可能是内存位置，也可能是存储设备上的一组块）之间的映射。基于这一映射，iomap 承担了一长串与文件系统相关的常见任务，从而让大量样板代码得以从各个文件系统实现中移除。</p>
+                    <p>iomap 代码由 Christoph Hellwig 于 2016 年底为 4.8 内核首次以此形式引入，但其中很多功能基于 Dave Chinner 早先在 XFS 文件系统中的实现。多年来，随着越来越多文件系统被转换过来、新功能不断加入，它也在持续壮大。当前实现由 <code>fs/iomap</code> 目录中的十几个文件组成。它被实现为两大层：一层是文件与其后备存储之间的底层映射；另一层是使用该映射、实现文件系统所需大量功能的上层代码。</p>
+
+                    <h3>存储映射</h3>
+                    <p>除极少数例外，文件系统实现的每个文件都是存储在某处持久介质上的一串字节的表示。文件系统的大量工作，归根结底是把以文件和偏移量表达的操作，转化为在内存与持久介质之间搬运数据。这一任务的关键环节，就是管理这两个域之间的映射。</p>
+                    <p>在 Linux 的早期，这种映射由 buffer head（缓冲区头）表示，但它们存在诸多问题。作为磁盘块与等大内存区域之间的直接映射，buffer head 并非为当今的大文件和基于 extent 的文件系统而设计。当所涉数据由 buffer head 表示时，很难生成大而高效的 I/O 操作。磁盘上单个连续的 extent 可能需要数百个 buffer head，每个管理一个块，而它们必须被重新组装成少数几次 I/O 操作。</p>
+                    <p>有了 iomap，原本可能涉及大量 buffer head 的映射，可以改用单个 <code>iomap</code> 结构来表达：</p>
+                    <pre><code>    struct iomap {
+	u64			addr; 		/* 映射的磁盘偏移，字节 */
+	loff_t			offset;		/* 映射的文件偏移，字节 */
+	u64			length;		/* 映射长度，字节 */
+	u16			type;		/* 映射类型 */
+	u16			flags;		/* 映射标志 */
+	struct block_device	*bdev;		/* 用于 I/O 的块设备 */
+	struct dax_device	*dax_dev; 	/* 用于 dax 操作的 dax_dev */
+	void			*inline_data;
+	void			*private;	/* 文件系统私有 */
+	u64			validity_cookie; /* 配合 .iomap_valid() 使用 */
+    };</code></pre>
+                    <p>简单来说，该结构的一个实例表示：文件中从 <code>offset</code> 字节起、连续 <code>length</code> 字节的这段范围，存储在底层设备上的 <code>addr</code> 处——设备由 <code>bdev</code>（普通块设备）、<code>dax_dev</code>（持久内存 DAX 设备）标识，或位于 <code>inline_data</code> 指向的内存区。<code>type</code> 字段描述实际表示的映射种类：</p>
+                    <ul>
+                        <li><code>IOMAP_MAPPED</code>：从文件到持久存储设备空间的普通映射。</li>
+                        <li><code>IOMAP_INLINE</code>：文件与 <code>inline_data</code> 所指内存之间的映射。这种映射可用于极小的文件，其文件数据可直接存放在文件 inode 中。</li>
+                        <li><code>IOMAP_HOLE</code>：底层存储尚未分配——根本没有映射。它仅对读操作有效，从该范围读取将返回全零。</li>
+                        <li><code>IOMAP_DELALLOC</code>：同样表示映射尚不存在，但将在未来某时创建。</li>
+                        <li><code>IOMAP_UNWRITTEN</code>：表示映射已存在，但后备存储尚未写入，可能包含随机（或敏感）数据。从该范围读取将返回全零，而不会真正访问后备存储。</li>
+                    </ul>
+                    <p>此外还有一套丰富的 <code>flags</code>，可由文件系统设置，以影响 I/O 的执行方式、标记需要写时复制的共享映射等等。</p>
+                    <p>这些 <code>iomap</code> 结构必须由文件系统实现来填充，以响应 iomap 层的请求。这些请求通过文件系统提供的一对回调传达：</p>
+                    <pre><code>    struct iomap_ops {
+	int (*iomap_begin)(struct inode *inode, loff_t pos, loff_t length,
+			unsigned flags, struct iomap *iomap,
+			struct iomap *srcmap);
+	int (*iomap_end)(struct inode *inode, loff_t pos, loff_t length,
+			ssize_t written, unsigned flags, struct iomap *iomap);
+    };</code></pre>
+                    <p>操作开始前，会调用 <code>iomap_begin()</code>，通知文件系统即将读取或写入文件的指定区域。所涉文件由 <code>inode</code> 标识，<code>pos</code> 和 <code>length</code> 表示操作将影响的文件范围。<code>flags</code> 参数有若干选项描述即将发生什么，包括：</p>
+                    <ul>
+                        <li><code>IOMAP_WRITE</code>：给定范围将被写入，因此必须分配空间（若尚不存在）。没有此标志则表示读操作。</li>
+                        <li><code>IOMAP_ZERO</code>：将文件的某段范围清零。</li>
+                        <li><code>IOMAP_DIRECT</code>：需要绕过页缓存的直接 I/O 操作。</li>
+                    </ul>
+                    <p><code>iomap_begin()</code> 函数必须为所请求操作的至少第一个字节，在提供的 <code>iomap</code> 结构中填入合适的映射；显然，若能用单个映射覆盖更大范围会更好。<code>srcmap</code> 参数用于这样的情形：操作所需数据（设想一次小写入需要先读入一个块，再写入其中一部分）必须从另一个设备读取。</p>
+                    <p><code>iomap_end()</code> 函数会在操作完成时被调用；<code>written</code> 参数将包含实际写入的字节数。此回调让文件系统能在操作后进行清理、对已分配的块记账，并释放未真正写入的块。</p>
+
+                    <h3>文件系统 I/O</h3>
+                    <p>上述映射只有在内核能够利用它们真正执行 I/O、并实现文件系统功能时才有意义。iomap 为此提供了许多可用的函数；不过按惯例，它们几乎"毫无文档"，逼得文件系统开发者去翻源码来发现它们、弄清如何使用。这种状况是否拖慢了 iomap 的转换进程，就留给读者自行评判了。</p>
+                    <p>把这些文档全部补齐，远超本文所能承载的范围，但一个例子足以说明问题。以缓冲读为例。若应用对文件调用 <code>read()</code>，需要发生一系列事情，包括在页缓存中分配空间、在磁盘上定位数据、把数据读入页缓存、再拷贝到用户空间缓冲区。内核的虚拟文件系统层处理了其中许多细节，但仍有一些部分需要文件系统自己实现。</p>
+                    <p>对于缓冲 I/O，文件系统必须提供一个 <code>struct address_space_operations</code>，其中带有若干回调来实现特定操作。其中之一、用于读操作的是 <code>read_folio()</code>：</p>
+                    <pre><code>    int (*read_folio)(struct file *file, struct folio *folio);</code></pre>
+                    <p><code>folio</code> 结构描述数据应读入的内存；它还包含该 folio 所映射文件的细节、folio 在文件中的偏移及其长度。文件系统应执行实际读取并把该 folio 标记为最新。如果该 folio 跨越后备设备上多个不连续的块，这可能涉及多次 I/O 操作。</p>
+                    <p>文件系统可以通过调用 <code>iomap_read_folio()</code> 完成 <code>read_folio()</code> 的大部分工作，但没那么简单；文件系统的 <code>read_folio()</code> 回调中需要先做一定的粘合。这包括定义一个 <code>iomap_read_ops</code> 结构：</p>
+                    <pre><code>    struct iomap_read_ops {
+	int (*read_folio_range)(const struct iomap_iter *iter,
+				struct iomap_read_folio_ctx *ctx, size_t len);
+	void (*submit_read)(const struct iomap_iter *iter,
+			    struct iomap_read_folio_ctx *ctx);
+        /* ... */
+    };</code></pre>
+                    <p><code>read_folio_range()</code> 操作负责创建单次读操作，或许只覆盖较大请求的一部分。如果 <code>read_folio_range()</code> 是同步的，就不需要 <code>submit_read()</code> 回调；否则应提供该函数来真正启动读操作。这两个函数的参数是一个 <code>iomap_iter</code> 结构（其中包含当前读位置等信息）以及 <code>ctx</code> 参数，后者是如下结构类型的实例：</p>
+                    <pre><code>    struct iomap_read_folio_ctx {
+	const struct iomap_read_ops *ops;
+	struct folio		*cur_folio;
+	struct readahead_control *rac;
+	void			*read_ctx;
+	loff_t			read_ctx_file_offset;
+    };</code></pre>
+                    <p>该结构应在文件系统的 <code>read_folio()</code> 实现中创建；<code>cur_folio</code> 应设为传入的 <code>folio</code> 参数，<code>ops</code> 设为文件系统的 <code>iomap_read_ops</code> 结构。可喜的是，许多文件系统其实不必创建自己的 <code>iomap_read_ops</code>；iomap 层为常见情形提供了自己的实现。所以，比如一个基于磁盘的文件系统可以直接用 <code>iomap_bio_read_ops</code>，而无需自行提供。</p>
+                    <p>准备好相应结构后，一个 <code>read_folio()</code> 实现就归结为对 <code>iomap_read_folio()</code> 的一次调用：</p>
+                    <pre><code>    void iomap_read_folio(const struct iomap_ops *ops,
+	  		  struct iomap_read_folio_ctx *ctx,
+			  void *private);</code></pre>
+                    <p>这里的 <code>ops</code> 结构，终于就是前面描述过的那组映射操作。iomap 层会用这些操作把读取映射到文件后备存储中的一段或多段范围，然后用所提供的读操作把这些范围读入给定的 folio。</p>
+                    <p>上述调用序列大致如下：</p>
+                    <p><img src="https://static.lwn.net/images/2026/iomap-sequence.png" alt="调用序列图" style="max-width:100%;border-radius:8px;margin:16px 0;"></p>
+                    <p>iomap 层隐藏了实现文件系统所伴随的大量复杂性，但仍有相当一部分会渗透出来；这里已经巧妙地略过了许多。例如，<code>struct iomap_read_folio_ctx</code> 中的 <code>readahead_control</code> 结构为预读操作提供参数，可能会推测性地提前读入一组块，以期加速将来的读取。</p>
+                    <p>缓冲写操作在 <code>struct address_space_operations</code> 中由 <code>writepages()</code> 回调实现。这里也有类似的"阻抗匹配"工作要做。<code>iomap_writeback_ops</code> 结构提供一组用于实现写入的底层回调；它应存放在 <code>iomap_writepage_ctx</code> 结构中，再传给 <code>iomap_writepages()</code>。</p>
+                    <p>许多其他文件系统操作也有 iomap 支持，包括直接 I/O、DAX I/O、文件内 seek、缺页处理、文件截断、交换文件激活等等。尽管前面有些冷嘲热讽，内核实际上也随附了一些 iomap 文档；它由 Darrick Wong 在借鉴众多开发者工作的基础上于 6.11 版本加入。</p>
+
+                    <h3>结语</h3>
+                    <p>iomap 子系统远未完工，几乎每个开发周期都有新工作并入。近期改动包括对启用 fs-verity 完整性保护文件的支持、生成与校验 T10 保护信息的能力、更好的预读支持等等。当然，偶尔也少不了安全修复。目前有工作正在进行，可能会用一套基于迭代器的 API 替换上文描述的 <code>iomap_begin()</code> 和 <code>iomap_end()</code> 回调，并改进直接 I/O 性能。文件系统的转换也在继续，目前正在考虑将 exfat 和 minix 文件系统转换为使用 iomap。换句话说，iomap 是一个相当典型、繁忙的核心内核子系统。</p>
+                    <p>总的来说，实现一个文件系统总会牵涉一定程度、无法完全抽象掉的复杂性。不过 iomap 层确实处理了每个文件系统都必须应对的大量底层细节。使用 iomap 还能让大 folio 支持等特性几乎不费额外功夫就能工作。因此不难理解，多年来，大多数积极维护的文件系统都已（至少部分地）过渡到了 iomap。</p>
+                    <p>（感谢 Steinar H. Gunderson 建议了这一选题。）</p>
+                    <p>[1 条评论]</p>
+                </div>
+            </div>
+
+            <!-- 文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">文件系统 · LSFMM+BPF</span>
+                    <h2>限制负目录项（negative dentries）</h2>
+                    <div class="article-meta">
+                        <span>作者：Jake Edge</span>
+                        <span>发布日期：2026年7月3日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在 2026 年 Linux 存储、文件系统、内存管理与 BPF 峰会（LSFMM+BPF）的一场文件系统专题会议上，讨论了一系列与负目录项（negative dentry）相关的问题。负目录项用于表示某个给定名称的文件在目录中不存在；这是一种优化，当答案已知时可短路对该文件名的查找。</p>
+                    <p>Miklos Szeredi 主持了这场会议，讨论了当一个目录拥有过多负目录项时会带来的一些问题。</p>
+                    <p>他首先指出，Ian Kent 报告过一个问题：某个目录拥有数亿个负目录项；在那种情况下，<code>fsnotify_set_children_dentry_flags()</code> 调用会遍历该目录中的所有目录项，导致软锁死（soft lockup）。一个相关的问题是：如果创建了足够多的目录项，<code>struct dentry</code> 中 <code>d_lockref</code> 锁的引用计数字段可能溢出，Szeredi 说。这个问题并非负目录项特有，但要为一个目录创建二十亿个正目录项是很难的。Kent 还提到，当负目录项如此之多时，哈希链可能变得过长，但 Szeredi 不确定这是不是一个真实存在的问题。</p>
+                    <p>Amir Goldstein 此前曾建议把负目录项移动到 <code>struct dentry</code> 中 <code>d_children</code> 列表的末尾，Szeredi 说。这样，<code>fsnotify_set_children_dentry_flags()</code> 之类的迭代器一遇到第一个负目录项就可以停下来。Chuck Lever 担心子目录项的顺序可能通过 <code>getdents()</code> 暴露出去，因而移动负目录项可能以破坏 <code>getdents()</code> 使用者的方式引起重排；不过 Szeredi 并不认为这会是个问题。另一种做法是在遍历 <code>d_children</code> 列表的代码中加入 <code>cond_resched()</code> 调用，Szeredi 说；那样会更复杂，但也能解决由正目录项（而不仅是负目录项）引起的软锁死。</p>
+                    <p>Jan Kara 也担心，如果其中一个负目录项在文件创建时变成正目录项，把负目录项移到末尾可能导致排序问题。他认为，有些遍历子项的迭代器依赖于不遗漏任何条目，因此在把更新后的目录项插入 <code>d_children</code> 列表时可能出问题。"我不是说这不可能，我只是不确定会不会有什么坑。"Szeredi 说，他认为只要目录项的更新也使用了相应的锁，迭代器的加锁就能防止这类问题。</p>
+                    <p>David Howells 提出，可以把用于跟踪子项的数据结构换成更适合处理海量负目录项的结构。不过他没有给出具体应换成什么结构的建议。Christian Brauner 说"原则上没有什么能阻止我们更换数据结构"，尽管这需要取得他人的一致同意。</p>
+                    <p>Brauner 问起 Kent 的一个补丁集，它会限制一个目录的子项能累积的目录项数量。Brauner 认为，应当探索某种针对目录项的启发式上限，这与可能针对负目录项的上限是分开的。那也许能引出一个"有意义、而不只是一个 sysfs 文件的启发式方法"，从而更好地管理负目录项。他说，负目录项过度累积的问题已经存在十年甚至更久了；是时候修好它了。</p>
+                    <p>Brauner 说，现在有机会扩展已有的 sysfs 旋钮（<code>dentry-negative</code>）。当前默认是"我们会用所有想缓存的目录项塞满你的内存"，这对某些工作负载没问题。另一些用户抱怨负目录项累积，因此可以把 <code>dentry-negative</code> 设为 1，让 <code>unlink()</code> 直接移除目录项，而不是把它变成负目录项。然而这并不能为所有人解决负目录项问题，因此可能需要更多选项。</p>
+                    <p>Szeredi 指出，那将不得不由用户空间来负责管理。"是的，那是我对一切问题的解决方案，"Brauner 在笑声中说道。他接着说，很多时候用户空间更适合来决定这类事情。"把一切都推到用户空间——就像 BPF 那样——并不总是好办法，但对很多这类事情，我们看到它确实奏效。"他以内存不足（OOM）杀手为例：内核实在无法为所有工作负载做出明智选择，因此用户空间更适合来做。</p>
+                    <p>Jeff Layton 赞同策略性选择应当留给用户空间。然而，Ted Ts'o 指出，这样做与"数十年经验表明用户从不修改默认值"相矛盾；他建议让老练的用户有旋钮可用，但默认值要在常见情形下工作良好。他认为，或许每个目录 1,000 个负目录项的上限对"所有正常工作负载"就足够了，但"想必是我想象力不够"。他想了解哪些工作负载会因该上限而出问题，从而理解还有哪些选项可能合理。</p>
+                    <p>作为"目录项过多"问题的一部分而浮现的、每目录项锁的引用计数溢出问题，是很严重的，Brauner 说。它需要二十亿个目录项，Kara 说，所以很难触发。Brauner 想知道能否设置某种内建上限，让它根本无法发生。Layton 问计数是否真的在溢出，但 Szeredi 说这是一个理论上的问题，尚无报告出现过。</p>
+                    <p>Goldstein 问超级块收缩器（shrinker）在驱逐和回收时是否优先处理负目录项。Layton 说大概不会，因为目录项是按最近最少使用（LRU）基础维护的。Goldstein 想知道这是否应当改变。Kara 认为也许应该改，但 Szeredi 指出，这些问题发生在内存过多的系统上，以至于收缩器根本没有运行。</p>
+                    <p>随着会议时间用尽，大家就如何限制计数、避免溢出进行了一些没有定论的讨论。</p>
+                    <p>[22 条评论]</p>
+                </div>
+            </div>
+
+            <!-- 文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">内核 · BPF · LSFMM+BPF</span>
+                    <h2>更快的 RCU 与无锁内存分配</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年7月7日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Puranjay Mohan 在 2026 年 Linux 存储、文件系统、内存管理与 BPF 峰会（LSFMM+BPF）上分享了他近期在提升 RCU（read-copy-update，读-拷贝-更新）性能方面所做的一些工作；如果这个话题能放在当天早些时候讲，会为 Harry Yoo 和 Alexei Starovoitov 主持的那场会议提供很好的背景——那场会议讨论的是新的 <code>kmalloc_nolock()</code> 函数，它允许在任意内核上下文中进行无锁分配，并为此与 RCU 子系统交互。因此，本文把两场会议放在一起、并以相反的顺序介绍，以补上那份缺失的背景。</p>
+
+                    <h3>更快的 RCU 宽限期</h3>
+                    <p>Mohan 这项性能工作的想法，正如许多与 RCU 相关的点子那样，源自与 Paul McKenney 的一次闲聊。RCU 的工作方式是：写者创建一个带有其所需改动的新副本，然后原子地切换指针指向新副本，从而保护指针背后的数据。读者可能仍在读取旧版本，所以写者在确信所有读者都已离开之前，不能释放旧版本。</p>
+                    <p>这发生在内核到达"静止状态"（quiescent state）之时：每个 CPU 都经历了一次上下文切换、进入空闲、返回用户空间或其他能确保不再有读者存在的转换。RCU 子系统对这些事件计数。当 RCU 保护资源的旧版本需要释放时，子系统会一直等到计数器足够高（比新副本切入时计数器的值大 2，以保证至少完整经历一个周期），才释放内存。这个等待被称为 RCU 宽限期（grace period）。等待宽限期的工作用一个回调链表来管理。</p>
+                    <p>但宽限期有两种不同类型。调用 <code>synchronize_rcu()</code> 会被动等待各 CPU 报告已到达静止状态，这可能耗时数十毫秒。而调用 <code>synchronize_rcu_expedited()</code> 会发送处理器间中断（IPI），强制各 CPU 比平时更快地到达并报告静止状态。第二种宽限期自然用在内核不想等那么久的地方。</p>
+                    <p>问题在于，这两种机制并发运行，却互不知情。等待普通 RCU 宽限期结束的回调，未必会在加速宽限期结束时被执行，反之亦然。Mohan 与 McKenney 讨论中冒出的想法就是修复这一点——允许普通 RCU 回调在加速宽限期一结束就被执行。在某些工作负载中，尤其是系统处于内存压力之下时，加速宽限期发生得很频繁，因此这一改动能让 RCU 保护的资源被更快地释放。</p>
+                    <p>修复在概念上很简单：让回调链表同时跟踪非加速宽限期编号和加速宽限期编号，只要其中任一编号足够高，就认为回调有资格运行。然而细节要复杂一些，尤其因为 RCU 是内核中对性能极为关键的部分。有三个内核内部函数——<code>rcu_exp_wait_wake()</code>、<code>rcu_pending()</code> 和 <code>rcu_core()</code>——需要调整逻辑以应对这一改动。</p>
+                    <p>一旦跑通，Mohan 便进行了一系列基准测试来评估该改动的实际影响。他设置了 15 个线程在循环中创建和销毁套接字（socket），这些操作会用 RCU 来释放内存。其他线程则刻意触发加速宽限期。然后他测量加速宽限期的发生频率如何影响内存使用量以及套接字销毁的延迟。总体而言，在所有测试的加速宽限期频率下，他看到分配的内存减少了 33%–41%（因为内存被更早释放）。<code>synchronize_rcu()</code> 调用的延迟也下降了，只是下降幅度对加速宽限期的实际频率更为敏感。</p>
+                    <p>Yoo 问，即使没有特别需要，仅为回收内存而请求一次加速宽限期，是否合理？Mohan 同意他的补丁集会让这成为可能，但 Starovoitov 反对说，一般最佳实践是——除非确有必要，否则不要使用加速宽限期，因为 IPI 代价高昂。在内存不足的情形下，加速宽限期往往为时已晚，起不到作用。Jakub Sitnicki 提议可以把加速宽限期用作直接回收（direct reclaim）的一部分；Starovoitov 让大家去问 McKenney 和内存管理的同仁其中的后果。</p>
+                    <p>另一位听众问 Mohan 是否知道加速宽限期在真实工作负载中被触发的频率。Mohan 没有生产环境的数据，但预计它会因工作负载而大相径庭，尤其取决于是否有 BPF 程序执行"map-in-map"更新——那会持续触发加速宽限期。这个问题标志着这场会议的结束。</p>
+
+                    <h3>无锁内存分配</h3>
+                    <p>过去，使用 BPF map 的程序必须为这些 map 预分配内存，Yoo 在这场关于 <code>kmalloc_nolock()</code> 的会议开场时解释道。这让程序无需获取普通内存分配器所需的锁便可访问 map，但当程序未填满 map 时也会浪费内存。BPF 分配器被加入内核就是为了按需分配内存，但它带来了自身的挑战。首先，发明一个新的内存分配器并不好玩。它带来了 BPF 子系统本可避免的维护负担。而且按最初的设计，BPF 分配器无法在 BPF 子系统之外使用。近期围绕 <code>kmalloc_nolock()</code> 的工作，目标就是在不重新引入 BPF map 预分配的前提下移除 BPF 分配器。</p>
+                    <p>棘手之处在于，能访问这块内存的既有可睡眠的 BPF 程序，也有不可睡眠的。不可睡眠的程序甚至能在 RCU 临界区内部访问它。因此，要给 BPF 分配器提供一个可行的替代品，任何方案都需要支持从可睡眠和不可睡眠两种上下文分配内存，并可能让这块内存被另一种上下文访问。它还需要支持让内存被立即释放，甚至用"RCU 类型安全"（typesafety-by-RCU）机制回收再利用。</p>
+                    <p>在 RCU 写者切换了指向 RCU 保护对象的指针之后、等待能够释放旧版本期间，它有可能需要再分配一个同类型的对象。通常情况下，它需要新建一次分配，因为现存读者可能仍在引用旧对象。但在某些情况下，即便读者可能仍在访问，重用现有分配也是安全的。由于把该分配用作不同类型的对象会导致未定义行为，因此只有当任何读者都会预期该对象是完全相同的类型时，这才安全。它将是相同类型（而不仅是相同大小的分配），这一点由 RCU 子系统保证——因此得名"RCU 类型安全"。</p>
+                    <p>这一技巧的一个使用场景是 BPF 哈希表。在内核中，几乎所有哈希表都用链表作为哈希桶，链表中的每个元素都包含键的一份副本及一些关联数据。真实的结构定义更复杂，但可以把它想成：</p>
+                    <pre><code>    struct node {
+        long key;
+        void *data;
+        struct node *next;
+    };</code></pre>
+                    <p>从哈希桶中移除一个元素时，写者知道任何读者都需要检查元素中存储的键是否是它们感兴趣的那个。因此，在把对象从哈希桶中解除链接之后，写者可以原子地把键改成别的值、再更新数据，最后把对象加回哈希表中相应的桶。读者需要先加载 data 指针、再加载键，然后校验键是否与它们想要的对象匹配，之后才使用 data 指针。由于写者先更新键、读者先取 data 指针，只要使用了恰当的内存序，读者就永远不会读到错误的数据。不过，它们可能读到错误的 next 指针，导致遍历错误的哈希桶。因此，每个哈希桶都以一个说明"这是哪个桶的末尾"的结构结束；如果读者到达了另一个桶的末尾标记，它就知道自己撞上了这种情况，需要重新扫描正确的桶。这一整套小心翼翼的操作，避免了必须等待对象被归还到内核的通用内存池，从而降低了延迟、内存抖动和内存使用量。</p>
+                    <p>一位听众问，分配器为何需要支持内存被立即释放。Starovoitov 解释说，某些 BPF 迭代器和辅助函数在某些情况下会这样做。Yoo 的幻灯片中提到了一个与 <code>kmalloc_nolock()</code> 配套的 <code>kfree_nolock()</code>。Amery Hung 指出，在这些上下文中其实已经可以使用 <code>kfree()</code>，因此大概不需要单独的 <code>kfree_nolock()</code>。Yoo 解释说，需要单独的函数来支持 RCU 类型安全的缓存，而这对性能很重要。</p>
+                    <p>Starovoitov 进一步说，"在早年做 tracing 的时候"，人们会把元素加入 BPF map，又在几纳秒内把它们移除。这在延迟剖析中尤为常见——往 map 里加入一个时间戳、再移除。用 <code>free_rcu()</code> 释放它们要经历一整个 RCU 周期，可能比该对象真正被需要的时间长得多。用 RCU 类型安全可避免这一开销，但用来回收已释放内存的确切机制其实无关紧要，只要有某种方式能实现这种即时重用即可，Starovoitov 说。</p>
+                    <p>这引出了一段关于它如何与不同 CPU 上运行 BPF 程序相互作用的题外话；简而言之，这里存在 BPF 程序出现竞态相关正确性 bug 的可能，但不会以影响内核的方式发生。</p>
+                    <p>最终，Yoo 把话题拉回 <code>kmalloc_nolock()</code>，并承认可能还需要一个 <code>kfree_rcu_nolock()</code> 来处理某些情况。Starovoitov 随后问及如何处理失败：<code>kmalloc_nolock()</code>"几乎总能"成功，但有时就是没有不加锁便可获得的内存。Yoo 说，回退到伙伴分配器（buddy allocator）、请求一个新 slab 或许是合理的办法，但 Starovoitov 指出那也可能失败。他问在那种情况下有没有办法处理失败。</p>
+                    <p>又一轮讨论最终产生了一个应当对分配失败更健壮、并支持为对象附加析构函数的设计，但仍无法完全排除分配失败的可能。尽管如此，Starovoitov 对这次讨论很满意，说："我很高兴我们把它讨论透了。"这个新设计想必会在各方面都远胜现有分配器。</p>
+                    <p>[暂无评论]</p>
+                </div>
+            </div>
+
+            <!-- 文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">内存管理 · LLM</span>
+                    <h2>两组 LLM 辅助的内存管理补丁集</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月2日</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>内核社区（与许多其他自由软件项目一样）近来涌入了大量借助大型语言模型（LLM）开发的补丁。这些补丁往往来自此前不为社区所知的开发者。不过，眼下内存管理开发者正在评估两组借助 LLM 开发、由资深且备受尊敬的开发者提交的大型补丁集。这项工作所受到的截然不同的待遇，或许能让我们洞察今后将如何对待由 LLM 生成的贡献。</p>
+
+                    <h3>可靠的 1GB 分配</h3>
+                    <p>随着 Linux 系统的运行，它的内存往往会碎片化，使得分配大块、物理连续的内存变得困难。多年来人们为改善这一状况做了大量工作；内核会努力避免碎片化，并按需主动整理内存。大块分配比过去可靠了。但分配上的挑战仍可能存在，例如可能让系统更难提供 2MB 的 PMD 级大页。</p>
+                    <p>鉴于这种困难，可靠分配 PUD 级（1GB）大页似乎是个不可能达成的目标。但正如 Rik van Riel 在一个 40 部分补丁系列的说明信中所言，有些工作负载若能成功获得 1GB 大页，就能从中获得显著的性能收益。在当前内核中，可靠分配这么大区域的唯一办法是使用 hugetlbfs 子系统，它在启动时为此保留内存。然而 hugetlbfs 很不灵活；它保留的页面不能用于其他用途，而且当工作负载需要更多页面时它也无法再保留。系统管理员只能寄望于启动时设置的保留量能适配系统后续可能运行的所有工作负载。</p>
+                    <p>van Riel 的补丁集试图在不需要 hugetlbfs 保留的情况下，让 1GB 分配更可靠。它采取了多种手段来达成这一目标，但核心思想是以"超级页块"（super page block）为单位管理内存。内核现在把内存划分为"页块"（page block），并以旨在对抗碎片化的方式来管理它们。关键技术之一是把可移动的分配与不可移动的分配隔离开。例如，大多数用户空间内存是可移动的，只需修改所有相关页表项即可。另一方面，内核自身用途的分配通常无法移动。通过把两种类型分开，内核最大化了通过把某个页块内的页面移往别处、从而腾出整个空闲页块的机会。</p>
+                    <p>在帮助页分配器提供 PMD 级大页方面，页块的效果尚可。但它们比 van Riel 想要达到的 1GB 目标要小得多；在撰写本文所用的系统上，页块被配置为 4MB 大小。在典型系统中，一些页块用于可移动分配，另一些则持有不可移动分配。可移动的页块可按需清空，以腾出更多 PMD 级大页。但只需一个不可移动的页块，就足以让其所在的整个 1GB 大页变得不可移动，从而永久碎片化。</p>
+                    <p>超级页块的加入，为页分配器提供了对内存使用情况的又一层可见性。当有分配不可移动页的请求到来时，分配器会像以前一样尝试从不可移动页块分配。若没有这样的、尚有空闲内存的页块，分配器就需要选择一个新页块来分配。van Riel 的补丁集会让分配器尝试从一个已持有其他不可移动分配的超级页块中挑选那个页块。换句话说，可移动与不可移动分配的隔离，如今在 1GB 尺度上进行，从而提高了按需创建并分配 1GB 大页的机会。</p>
+                    <p>还有其他若干技术被用来帮助这一总体策略奏效。以一次需要若干页的、虚拟映射的内核空间分配（例如用 <code>kvmalloc()</code> 获得的那种）为例。这种分配不可移动，因此应放入一个不可移动的超级页块。如果没有拥有那么多连续页的这类页块，分配器自然会挑一个新的超级页块，从而"污染"它、使其不可移动。然而，如果该分配可以通过拆分成更小的块、从现有的不可移动超级页块中得到满足，分配器就会那样做。</p>
+                    <p>这个系列中的补丁带有 Assisted-by 标签，表明在创作中使用了 Claude Opus LLM。不过如前所述，van Riel 并非一个需要 LLM 辅助才能拼凑出内核补丁的新手。他在 LWN 中的首次提及，是关于 1998 年的一场内存碎片化讨论；他当时提议加入一个分区内存分配器（zoned memory allocator），后来该提议果然被采纳。他属于那种在工具选择上会被给予善意推定的开发者。</p>
+                    <p>然而，尽管这个补丁系列的目标——可靠分配 1GB 大页——获得广泛支持，它本身却并未受到完全的好评。最尖锐的批评当属 Lorenzo Stoakes 那封长信，他对该系列的组织方式及其中的代码提出异议。"这个系列按现状完全无法合并。差得远。"该系列的其他部分被形容为"对 __rmqueue_smallest() 犯下的代码战争罪"，或"你以为会在 1990 年代的 PHP 网站上、而非核心 mm 代码里看到的东西"。他最后写道：</p>
+                    <blockquote>
+                        <p>好了，说了这么多——把话讲清楚——我非常尊重你，而且我知道你（远远、远远地）比这好得多。</p>
+                        <p>再重复一遍，这个想法非常令人兴奋，我确实想看到它落地。</p>
+                        <p>但我觉得你多少是让 LLM 撒了欢，而它把你（严重、严重地）低估了，鉴于你其实是多么聪明和有能力。</p>
+                    </blockquote>
+                    <p>van Riel 回复说，他从未指望这段代码以当前形式被合并，他真正希望的，是在重新以可供合并考虑的形式实现之前，先就整体设计获得反馈。然而这一大堆 LLM 生成的代码妨碍了那一过程。开发者想通过审视一个设计的实现来理解它在实践中如何运作，而在本例中，他们发现这很难做到。这项工作将不得不重做——投入更多人力审视——之后才能被认真考虑，哪怕只是在设计层面。</p>
+
+                    <h3>虚拟机客户机内存的工作集跟踪</h3>
+                    <p>虚拟机（VM）受制于两层内存管理。它们在内部管理自己的内存，但还有主机层面的管理，力求让系统的物理内存被所有运行中的 VM 高效使用。如果 VM 管理器（hypervisor）能看到某个 VM 实际正在使用哪些页面，主机层面的任务就会更容易；这些信息可用于回收较"冷"的页面（或将它们迁移到较慢的内存）。但这类信息往往被锁在 VM 内部。</p>
+                    <p>Kiryl Shutsemau 的这个补丁系列，意在让这种使用信息对 VM 管理器更易获取。它为 <code>userfaultfd()</code> 系统调用新增了一种注册模式，使指定页面范围的保护（在主机层面）被标记为"禁止访问"。在注册时，可以在虚拟机确实访问其中某个页面时的两种行为之间选择。若选择了同步模式，VM 管理器会收到来自内核的消息，在记录该缺页后，可通过再次向内核发请求来解决它。在异步模式下，内核会在不通知 VM 管理器的情况下重置权限；稍后，管理器可扫描该页面范围，查看哪些页面已被访问过。</p>
+                    <p>这些补丁同样带有指名 Claude Opus 的 Assisted-by 标签。Shutsemau 在内核社区没有 van Riel 那样的资历；他在 2008 年为 2.6.25 内核做出首次贡献，算是相对的新人。尽管如此，他的履历也足够长，足以表明——再一次——他完全有能力理解自己提交给社区的这项工作。</p>
+                    <p>这个系列已经历七次修订，并因收到的评审而做了重大修改。与 van Riel 的工作所受到的待遇相反，没有任何一条评审把 LLM 在创作中的作用当作问题提出来。不过，在第二次修订的回应中，Andrew Morton 确实询问了 LLM 是如何被使用的；Shutsemau 详细作答。该工具的作用很大程度上在于验证想法：</p>
+                    <blockquote>
+                        <p>对这个特定项目，有相当多的探路工作。我有一个阶段是把想法抛给 Claude。它帮我更好地理解了问题空间、拟定了可能的解决方案。就像加强版的"橡皮鸭调试"。</p>
+                        <p>一旦弄清"该做什么"，我们就制定一个"怎么做"的计划。这也涉及来来回回。</p>
+                        <p>计划做好后，我发出执行的指令。</p>
+                    </blockquote>
+                    <p>他说，整个过程中最耗时的部分是审查生成的代码；那涉及不止一次从头重启。花了"大约 8 到 10"轮，才得到令他满意的代码——然后才把整个系列连同另一套不同的提示词一起，喂给 LLM 做评审。</p>
+                    <p>这套工作流程看来产出了一个可行的补丁集，对核心内存管理代码做出了重大改动。相较于上文所述的那项工作，成功的关键似乎在于：投入大量人力时间来让工具把活儿做好，并在之后处理遗留问题。看来，在这些补丁抵达邮件列表之前，就用心确保它们达到社区期望的质量水平，正是造成全部差别的原因。</p>
+                    <p>Shutsemau 没有说整个过程是否比不借助 LLM 直接做更高效，但他似乎倾向于将来再次使用这一流程。</p>
+                    <p>Shutsemau 消息的结尾是请求其他开发者分享他们与 LLM 协作的流程，但无人回应。说实话，就核心内核的重要工作而言，他似乎是先行者之一。不过，他所描述的通往成功之路看来并不轻松；任何指望把 LLM 当作快速成为内核开发者捷径的人，都应留意这个很可能成为迄今（就内核代码而言）最大成功故事的案例。</p>
+                    <p>[22 条评论]</p>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for July 9, 2026</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全</h3>
+                    <h3>Guix 中的四个漏洞</h3>
+                    <p>GNU Guix 项目公布了 <code>guix substitute</code> 工具中的三个漏洞，以及影响 <code>guix pull</code> 和 <code>guix time-machine</code> 命令的第四个漏洞。这些漏洞的影响从远程提权到本地敏感文件泄露不等。</p>
+                    <blockquote>
+                        <p>对 <code>guix substitute</code> 的远程利用只需易受攻击的系统尝试下载一个二进制替代品即可。任何已配置的替代品服务器（包括通过 <code>guix-daemon</code> 的 <code>--discover</code> 选项发现的服务器）都能利用此漏洞，中间人（MITM）也能，无论替代品服务器 URL 中是否使用了 <code>https</code>。</p>
+                        <p>对 <code>guix substitute</code> 的本地利用只需能够连接到 guix-daemon 的套接字，而默认情况下任何用户都能连接。</p>
+                        <p>另外，还发现 <code>guix pull</code> 和 <code>guix time-machine</code> 中存在另一个安全问题（CVE 编号待定），它使任何能控制这些命令所用 channels 文件的人，都能在运行该命令的用户有权创建文件的任何位置创建或覆盖文件。</p>
+                    </blockquote>
+                    <p>项目建议所有用户立即升级 <code>guix</code> 和 <code>guix-daemon</code>。具体说明、如何检测漏洞、披露时间线等详见公告。</p>
+
+                    <h3>OpenSSH 10.4 发布</h3>
+                    <p>OpenSSH 10.4 已发布。除大量安全和 bug 修复外，还有几处值得注意的改动：本版本新增了对一种组合式后量子签名方案的实验性支持，该方案按 IETF 草案将 ML-DSA 44 与 Ed25519 结合。在 10.4 中，如果 OpenSSH 编译时带有沙箱支持，它将在未启用 <code>SECCOMP</code> 或 <code>NO_NEW_PRIVS</code> 的 Linux 系统上失败；在此之前，<code>sshd</code> 会记录一条错误但继续运行。完整改动列表详见发布说明。</p>
+
+                    <h3>Woodruff：你不该信任"可信发布"</h3>
+                    <p>William Woodruff（网名"yossarian"）发表了一篇博文，论证用户不应把信任寄托于"可信发布"（trusted publishing）：</p>
+                    <blockquote>
+                        <p>可信发布是一种在外部机器身份（如 CI/CD 工作流）与包索引/注册表上的一个或多个项目之间建立信任的机制。"可信发布"中的"信任"指的是那种信任关系，而不指其他任何东西。</p>
+                        <p>它不是、也不可能是包可信度或质量的信号。你无法用它来判断一个包是否安全或"好"，而 PyPI 也刻意阻止把它误用于此目的——不会把它呈现为"绿色对勾"或任何类似东西。</p>
+                        <p>换一种说法：可信发布只是一种认证形式。除了表明某次上传经过了认证之外，它什么也说明不了——而所有上传到 PyPI 的操作本就都经过认证。</p>
+                    </blockquote>
+                    <p>LWN 曾在 6 月报道过可信发布。</p>
+
+                    <h3>本周安全引述</h3>
+                    <blockquote>
+                        <p>计算机化早已让数据收集者能够追踪我们的位置、收集我们与谁通信的名单、监控我们的消费习惯——除非我们使用现金。新出现的，是把上述每一种机制以一种持续而不懈的方式空前融合起来。AI 带来了一种分析能力，可以窥探我们通信的内容，并回答有关我们行踪与活动的复杂问题：以前需要人工分析师完成的动作，如今被自动化了。其结果将是一种被极度放大的、社会层面的寒蝉效应——恐惧、自我审查和群体思维大行其道，而异见、创造力和创新则愈发稀少。</p>
+                        <p>在这种恐惧与从众的氛围中，冒险的想法、社会活动以及自我重塑——尤其是不受青睐的群体和被针对的人群——也会被寒蝉效应所抑制。这将对社会进步产生长期影响。</p>
+                        <p>—— Bruce Schneier 与 Jon Penney</p>
+                    </blockquote>
+
+                    <h3>内核开发</h3>
+                    <h3>内核发布状态</h3>
+                    <p>当前开发内核是 <strong>7.2-rc2</strong>，于 7 月 6 日发布。Linus 说："现在是周日下午，rc2 出炉了。看起来非常正常——它不算小，但与近期几次发布持平，略小于 7.1 的 rc2。我们看看这一切如何继续，但目前一切顺利。"本次发布已包含来自 2,176 位开发者的 13,798 个非合并变更集，其中 418 位是首次内核贡献者。</p>
+                    <p><strong>稳定版更新</strong>：<code>7.1.3</code>、<code>6.18.38</code>、<code>6.12.95</code>、<code>6.6.144</code>、<code>6.1.177</code>、<code>5.15.211</code> 和 <code>5.10.260</code> 于 7 月 4 日发布。</p>
+
+                    <h3>kernel.org 的 /pub 目录正在恢复</h3>
+                    <p>一些眼尖的观察者注意到 kernel.org 上的部分内容消失了，并对此感到担忧，这可以理解。Konstantin Ryabitsev 通过 social.kernel.org 给出了说明：</p>
+                    <blockquote>
+                        <p>在更改 kernel.org 主/从镜像基础设施时发生了一次不幸的错误，导致 /pub 目录突然变空。没有数据丢失，只是丢了公共镜像副本。一切正在恢复中，但删除很快、恢复很慢，所以感谢你的耐心！</p>
+                    </blockquote>
+                    <p>该事件正在 Linux 基金会的 IT 状态页上追踪。</p>
+
+                    <h3>本周引述</h3>
+                    <blockquote>
+                        <p>和其他子系统一样，我们看到大量 AI 生成的补丁和 bug 报告（公开的和私下的），提交者的角色就像"索伦之口"（Mouth of Sauron，代人传话的傀儡）。这是不可接受的，这类补丁要么会被忽略，要么会被严重降低优先级。</p>
+                        <p>一般来说，隔墙抛过来的、凭感觉糊出来的（vibe-coded）复杂 RFC 提交，永远别指望能得到冗长、深入的评审——尤其当提交者明显没有真正花时间把事情想透，或根本不理解自己在做什么的时候。这只是在占用宝贵的开发和评审时间。</p>
+                        <p>把成堆的代码、或无尽如消防水龙头般的小补丁隔墙抛过来，只为把自己的名字塞进内核，这不是什么成功故事。</p>
+                        <p>—— Christian Brauner</p>
+                    </blockquote>
+
+                    <h3>发行版</h3>
+                    <h3>CalyxOS 回归了</h3>
+                    <p>2025 年 8 月，注重隐私的 Android 发行版 CalyxOS 宣布，在其一位创始人离开后，将暂停所有发布，以重做其发布流程、安全协议并更换签名密钥。该项目现已宣布随 7.2.2.0 版本"正式结束停摆、回归"。</p>
+                    <blockquote>
+                        <p>CalyxOS 7.2.2.0 由我们使用一套新的、基于 HSM 的开源签名方案进行签名——我们设计该方案是为了增强整个签名过程的安全性、确保冗余并消除单点故障。你可以按相关说明验证 CalyxOS 7.2.2.0 及未来的构建。对感兴趣的人，HSM 配置仪式脚本的安全审计报告也已公开。</p>
+                        <p>此外，我们还进行了重大的基础设施改进。特别是，我们建立了更清晰的服务器结构以简化每次发布。针对 Google 更不频繁的 AOSP 源码发布，我们的团队开发了脚本以减少每月打补丁和更新的开销。请注意，为弥补 AOSP 的变化，仍需一些额外的手动步骤，例如在每次更新时请求并存储内核源码。目前，我们的首席工程师正继续维护 LineageOS 与 CalyxOS 的基础设备树，以弥合因缺少 Google Pixel 设备树而产生的空缺。</p>
+                    </blockquote>
+
+                    <h3>Fedora 理事会提议暂停"社区倡议"流程</h3>
+                    <p>Aoife Moloney 代表 Fedora 理事会发布公告，称理事会"提议将社区倡议（Community Initiatives）流程作为一项官方项目流程予以暂停"，因为它认定现行流程无效。理事会同时关闭了 LWN 5 月报道过的"AI 开发者桌面倡议"的相关讨论。</p>
+                    <blockquote>
+                        <p>Fedora 的目标/倡议框架从来无意成为在 Fedora 中开展工作的强制前提。它本应通过在需要时把社区聚焦于某项工作来提供帮助，而不是决定什么被允许。AI 开发者桌面倡议提案凸显出：社区倡议流程未能成为一个良好框架——让新想法得以浮现、获得尊重的反馈、并为契合项目当下和/或未来的工作赢得理事会支持。这是理事会必须解决的问题。</p>
+                        <p>作为第一步，我们希望立即叫停社区倡议流程。进行中的现有倡议（Fedora Forge、Atomic 和 Fedora Docs 2026）将在理事会的全力支持下继续。它们的底层工作将按当前限定的时间框如计划完成，尽管围绕它们的行政框架可能会演变。作为第二步，我们希望设计一种新机制，让理事会能以一种开放、透明的方式设定战略方向，并更有意地纳入社区声音。我们认识到，在讨论与决策中我们必须做得更开放。</p>
+                    </blockquote>
+                    <p>理事会正在考虑把"沙盒"（sandbox）提案作为替代或补充社区倡议的一种流程。</p>
+
+                    <h3>OpenMandriva：关于蓄意破坏发行版未遂的声明</h3>
+                    <p>在 OpenMandriva 论坛上，该 Linux 发行版报告其仓库遭到一名持有管理员凭据、心怀不满的贡献者蓄意破坏。据"AngryPenguin"称，发行版 Matrix 聊天中的一起辱骂事件导致某用户被踢出聊天；这"触发了一连串事件"，导致一些人从发行版退出。最终，其中一人利用其管理员权限删除了发行版 GitHub 仓库的一部分，并"在 cooker 仓库中发布了一个空包，使所有 gnome 和 cosmic 包被标记为过时（obsolete），这可能损坏使用 gnome 或 cosmic 的用户的系统"。</p>
+                    <blockquote>
+                        <p>我们目前正努力恢复被删除的仓库，并恢复被置为过时的包的功能。……我们进行了一次全面的系统审计，除被移除的包之外，未发现其他违规行为。</p>
+                    </blockquote>
+
+                    <h3>开发</h3>
+                    <h3>本周开发引述</h3>
+                    <blockquote>
+                        <p>固件不过是名字起得滑稽的软件，而且通常 API 更难修。</p>
+                        <p>—— Matthew Garrett</p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for July 9, 2026</span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：DistroWatch Weekly（7 月 6 日）、Linux Mint Monthly News（6 月）、openSUSE Tumbleweed Review of the Week（7 月 3 日）、SparkyLinux News（7 月 1 日）、Ubuntu Weekly News（6 月 29 日）。</p>
+                    <p><strong>开发</strong>：Emacs News（7 月 6 日）、What's cooking in git.git（7 月 1 日与 7 月 7 日两期）、Git Rev News（6 月 30 日）、This Week in GNOME（7 月 3 日）、GNU Tools Weekly News（7 月 5 日）、Golang Weekly（7 月 3 日）、Last Week in Kubernetes Development（7 月 2 日）、LibreOffice project and community recap（7 月 3 日）、LLVM Weekly（7 月 6 日）、This Week in Matrix（7 月 3 日）、Perl Weekly（7 月 6 日）、This Week in Plasma（7 月 4 日）、PyCoder's Weekly（7 月 7 日）、Weekly Rakudo News（7 月 6 日）、Ruby Weekly News（7 月 2 日）、This Week in Rust（7 月 1 日）、Sourceware infrastructure updates（第二季度）、Wikimedia Tech News（7 月 6 日）。</p>
+                    <p><strong>会议记录</strong>：Fedora FESCo meeting minutes（7 月 7 日）、openSUSE Release Engineering minutes（7 月 8 日）、This week in the Perl Steering Committee（6 月 29 日与 7 月 7 日两期）。</p>
+                    <p><strong>其他</strong>：Free Software Supporter（7 月）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>7 月 14 日</td><td>9 月 17–18 日</td><td>Git Merge</td><td>里斯本，葡萄牙</td></tr>
+                            <tr><td>7 月 15 日</td><td>7 月 15–22 日</td><td>BornHack 2026</td><td>菲英岛，丹麦</td></tr>
+                            <tr><td>7 月 31 日</td><td>10 月 14–17 日</td><td>PyCon South Africa</td><td>开普敦，南非</td></tr>
+                            <tr><td>7 月 31 日</td><td>10 月 1–2 日</td><td>embedded Linux for Safe and Secure Applications</td><td>哥廷根，德国</td></tr>
+                            <tr><td>8 月 1 日</td><td>9 月 28 日–10 月 1 日</td><td>Alpine Linux Persistence and Storage Summit</td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>8 月 1 日</td><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 2–4 日</td><td>GNU Tools Cauldron</td><td>布拉格，捷克</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>7 月 13–19 日</td><td>DebCamp 26</td><td>Santa Fe，阿根廷</td></tr>
+                            <tr><td>7 月 13–16 日</td><td>Netdev</td><td>罗马，意大利</td></tr>
+                            <tr><td>7 月 13–19 日</td><td>EuroPython</td><td>克拉科夫，波兰</td></tr>
+                            <tr><td>7 月 15–22 日</td><td>BornHack 2026</td><td>菲英岛，丹麦</td></tr>
+                            <tr><td>7 月 16–19 日</td><td>Electromagnetic Field</td><td>Eastnor，英国</td></tr>
+                            <tr><td>7 月 18 日</td><td>AlmaLinux Day: Los Angeles</td><td>洛杉矶，美国</td></tr>
+                            <tr><td>7 月 20–25 日</td><td>DebConf 26</td><td>Santa Fe，阿根廷</td></tr>
+                            <tr><td>8 月 6–9 日</td><td>FOSSY 2026</td><td>温哥华，加拿大</td></tr>
+                            <tr><td>8 月 8–9 日</td><td>UbuCon Asia 2026 @ COSCUP</td><td>台北，中国台湾</td></tr>
+                            <tr><td>8 月 11–12 日</td><td>Open Source Summit Korea</td><td>首尔，韩国</td></tr>
+                            <tr><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>7 月 9 日这一期涵盖了 7 月 2 日至 7 月 8 日期间各发行版发布的大量安全公告，涉及 AlmaLinux、Debian（含 stable 与 LTS）、Fedora、Mageia、Oracle、Red Hat、Slackware、SUSE 以及 Ubuntu（覆盖 14.04 至 26.04 多个版本）。受影响软件包涵盖 kernel、chromium、firefox、php、ruby、mysql、postgresql、openvpn、docker 相关组件，以及 perl、python 系列等。其中 AlmaLinux 与 SUSE 的更新条目最多；Red Hat 主要针对 EL9/EL10 的内核及容器工具。完整列表详见 LWN 安全公告摘要。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（7 月 1 日–7 月 8 日）内核相关补丁精选包括：</p>
+                    <ul>
+                        <li><strong>内核发布</strong>：Linux 7.2-rc2（Linus Torvalds，7 月 5 日）、Linux 7.1.3 / 6.18.38 / 6.12.95 / 6.6.144 / 6.1.177 / 5.15.211 / 5.10.260（Greg Kroah-Hartman，7 月 4 日）、5.10.260-rt156（实时补丁）。</li>
+                        <li><strong>架构相关</strong>：alpha 启用通用 entry 基础设施、ARM 平台与特性弃用、arm64 支持 FEAT_NMI 并重做异常屏蔽、LoongArch 增加 livepatch（KLP）支持、powerpc 的 Rust 支持、riscv 增加 Ssqosid 与 CBQRI resctrl 支持、x86/resctrl 增加内核态支持等（约 30 条）。</li>
+                        <li><strong>核心内核</strong>：新增 <code>smp_cond_load_timeout()</code>、vDSO 尊重 COMPAT_32BIT_TIME、代理执行（Proxy Execution）的睡眠 owner 处理、使代理执行兼容 sched_ext、binfmt_misc 支持 BPF 后端的二进制类型处理器等（约 15 条）。</li>
+                        <li><strong>开发工具</strong>：selftests/vfio 增加 sPAPR TCE v2 覆盖、DEPT 依赖追踪器、kallsyms 在内核栈回溯中嵌入源文件行号、引入 meminspect、bpf 为 JIT 程序增加 KASAN 检查等（约 7 条）。</li>
+                        <li><strong>设备驱动</strong>：新增大量硬件支持——PCI（rcar-gen4、SpacemiT K3 的 UFS 主控）、蓝牙 MT7928、drm/intel 的 PREEMPT_RT 安全 vblank 规避、net/dsa mv88e6xxx 系列、Nova GPU、drm/msm Eliza GPU、wifi rtw89、media ipu6 等（约 120 条，列表最长）。</li>
+                        <li><strong>驱动基础设施</strong>：i3c 支持基于 IBI 的系统唤醒、DRM 调度器 kthread_worker、为 dma_fence 增加 Rust 抽象、driver core 延迟 per-VF sysfs 创建、Rust 的 usb/drm 绑定等（约 12 条）。</li>
+                        <li><strong>文档</strong>：landlock 记录其威胁模型（7 月 7 日）。</li>
+                        <li><strong>文件系统与块层</strong>：VFS 为目录加锁的改动做准备、原生 SCSI 多路径支持、vfs 增加 O_CREAT|O_DIRECTORY、为 xfs 增加 FALLOC_FL_WRITE_ZEROES 支持、ovl 增加检索层文件描述符的 ioctl 等（约 11 条）。</li>
+                        <li><strong>内存管理</strong>：页分配器 API 清理、mm/damon 增加 mTHP collapse/split 动作、userfaultfd 的 VM 客户机内存工作集跟踪、匿名 THP 的 PMD 级交换项、mm/hugetlb 的动态 NUMA 感知大页缓存等（约 20 条）。</li>
+                        <li><strong>网络</strong>：net/devmem 允许 rx-buf-size 大于 PAGE_SIZE、支持 per-netns 设备注销、mctp over USB v1.1、引入 bpf_ksock、Rust netlink 支持并用于 Rust Binder 等（约 11 条）。</li>
+                        <li><strong>安全相关</strong>：加载时验证 BPF 签名加载器、Rust crypto 库（AES-128 / SHA-256 / HMAC + RSA）、seccomp 非协作式 pinned-memfd 参数重定向、PCI 安全协议的设备证据与信任（TDISP）、用更细粒度 mount 钩子替换 security_sb_mount 等（约 7 条）。</li>
+                        <li><strong>虚拟化与容器</strong>：KVM 为 guest_memfd-only memslot 做脏页记录、Hyper-V 增加半虚拟化 IOMMU 支持、KVM/arm64 增加 GICv5 IRS 支持、KVM x86/pmu 增加中介 vPMU（PerfMon v5）、KVM/SVM 增加 SEV-SNP Secure AVIC 支持等（约 13 条）。</li>
+                        <li><strong>杂项</strong>：perf kvm 默认架构事件的小更新（7 月 1 日）、ethtool 7.1 发布（7 月 7 日）。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1080835/" target="_blank">LWN.net Weekly Edition for July 9, 2026</a></p>
+            <p>更新时间：2026年7月16日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
