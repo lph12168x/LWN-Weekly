@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年7月16日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年7月16日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">抓取机器人现状更新</a></li>
+                    <li><a href="#article2">io_uring 的无锁 MPSC FIFO 队列</a></li>
+                    <li><a href="#article3">文件系统测试专题（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article4">用 BPF 为运行中的内核抵御漏洞利用（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article5">直接从 BPF 发送数据包（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article6">Kitty 追上了鼠标</a></li>
+                    <li><a href="#article7">QBE 1.3：元编程、性能与跨平台支持</a></li>
+                    <li><a href="#briefs">📝 简讯</a></li>
+                    <li><a href="#announcements">📢 公告</a></li>
+                </ul>
+            </div>
+
+            <!-- 文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">网络 / 社区</span>
+                    <h2>抓取机器人现状更新</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月10日</span>
+                        <span><a href="https://lwn.net/Articles/1080822/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>LWN 在 2025 年初发表的文章《对抗 AI 抓取机器人之祸》讨论了为大语言模型及相关项目搜寻训练数据而对网站进行大规模抓取的问题。这种活动让网站被流量淹没。那篇文章发表一年多之后，问题仍在恶化。影影绰绰的行为者对网站的猛烈冲击达到了新高度，开放网络正变得越来越难以维系。这些流量从何而来？又能做些什么？</p>
+
+                    <h3>住宅代理</h3>
+                    <p>正如去年所述，抓取攻击来自遍布全网的海量来源。在几个小时内看到来自数百万个唯一 IP 地址的协同请求并不罕见，每个地址最多只访问站点两三次。攻击者可控的数据（如 user-agent 字段）完全是虚构的；每次访问都被伪装成"又一个用浏览器上网的普通人"。虽然有办法分辨——机器人通常不会抓取图片或 CSS——但等到做出判断时，该地址已不会再被使用，此时封禁它纯属浪费时间。</p>
+                    <p>这些流量主要来自住宅和移动网络，由中心化的命令与控制节点调度。普通设备上被安装了软件，接受控制节点的指令、按需抓取网页并把结果回传给控制者。多数情况下，这一切都发生在设备拥有者不知情、未同意的情况下。这类被利用的系统被称为"住宅代理"（residential proxies）。</p>
+                    <p>运营住宅代理网络攻击网站的运营者（至少表面上）有几种类型。一类是纯粹的犯罪团伙，在被恶意软件攻陷的系统上运行抓取器。今年年初，Google 出手端掉了一个名为 IPIDEA 的机器人网络，并披露了大量此类运作的细节。IPIDEA 的关停与 LWN 遭受的抓取流量显著下降在时间上吻合；此后有几个月相对太平。但这段平静期已经结束。</p>
+                    <p>最近，流媒体设备被认定为恶意抓取软件的主要载体（如 Popa 僵尸网络）。有时设备在出厂源头就被植入；有时只是安全性太差、事后轻易被攻陷。</p>
+                    <p>第二类运营者行事更公开，佯装某种程度的合法性，提供所谓"合乎道德来源"的 IP 地址。Bright Data 公司是其中最著名的一家；它大方地宣传自己绕过网站访问控制和流量限制的本事。Bright Data 提供"免费"VPN 服务；用户需要付出的仅仅是允许 Bright Data 通过自己的设备转发流量——换句话说，就是成为该公司住宅代理网络的一部分。每一部使用这种 VPN 的手机或其他设备，都会变成又一个被用来攻击网站的端点。</p>
+                    <p>这类运营者还有很多；它们常常提供一个库，让 App 开发者链接进自己的应用，靠劫持用户的网络连接获得报酬。其中一家甚至来询问能否在 LWN 上为其 SDK 投放广告；不用说，那是一场很短的对话。总体而言，这些公司的光谱从力图营造合法外表（比如宣传"符合 GDPR"）到公然下作，不一而足。</p>
+                    <div class="info-box warning">
+                        <p><strong>值得强调的是</strong>：虽然这些住宅代理网络被用于网站抓取，但这些运营者有能力在数百万设备所连接的任何网络上运行访问资源的代码。以为这种访问能力只会被用于抓取，往好里说也是天真。</p>
+                    </div>
+                    <p>当然还有那些以开发模型为核心业务的高知名度公司。它们自己也做抓取；能明确归属于它们的流量在 user-agent 字段中标识清晰，而且一般会遵守 <code>robots.txt</code>。它们同样会反复抓取整个网站——似乎认定 2003 年写的文章可能在过去一天里发生了变化——但它们不会从数百万系统制造压倒性的流量，不是最大的问题。</p>
+                    <p>不清楚的是究竟谁在使用住宅代理；<em>有人</em>在付钱让它们对网站发动这些攻击。（据作者所知）没有证据表明前沿模型公司在使用那些网络。不过，就算最终证明它们真的在用，全球的惊讶程度恐怕也不会有丝毫上升。这些公司总得给模型喂数据，它们对训练数据的来源讳莫如深，对内容创作者——以及任何对其运作有疑虑的人——也从未表现出多少尊重。</p>
+                    <p>而每一个公开的模型背后，必然有大量地下模型。许多公司想必都在训练自己的模型；毕竟我们被反复告知 AI 将接管世界，赢下这场竞赛的公司将价值连城。许多国家想必有神秘的政府机构在训练自己的模型，四处搜刮训练数据。大型犯罪组织（如果它们与政府还有区别的话）恐怕也想拥有自己的模型。这些工具被视为武器，一场军备竞赛正在进行。整个互联网被夹在交叉火力之中。</p>
+
+                    <h3>保卫开放互联网</h3>
+                    <p>面对这一切，网站运营者一直在仓促构筑防御，同时尽量减小对真实用户的影响。要求工作量证明来抵挡抓取器的 Anubis 如今已经遍地开花。其他站点使用商业服务，有时会以"证明你是人类"的按钮示人。还有的站点强迫用户挑出包含路灯的方块（但只能选 LED 灯泡的）、拼图，或者按住空格键哼一首歌。许多站点功能被挪到了登录墙或付费墙之后。有些站点则尝试用 iocaine 之类的工具主动向抓取器投喂毒化数据。</p>
+                    <p>无论是搭建和维护这些机制的成本，还是用户为访问网站而必须应付它们的负担，都构成了抓取者及其金主强加给全世界的一笔重税。</p>
+                    <p>最近，LWN 遭受了迄今为止最猛烈的一次抓取攻击。得益于已经部署的防御措施，站点较好地扛住了流量，大多数真实读者可能根本没有察觉。有人请求 LWN 介绍防御措施的细节；出于显而易见的原因，我们不愿详谈——在这个层面上这同样是一场军备竞赛。</p>
+                    <p>能说的是：我们尽了最大努力将对真实读者的影响降到最低。我们没有采用 Anubis 之类的工具，一方面因为它会给访问者带来恼人的延迟，另一方面也因为抓取器迟早会绕过它——事实上已有迹象表明这正在发生。当你手里有数百万台别人的机器可以干活时，工作量证明算不上什么大障碍。</p>
+                    <p>我们也不希望妨碍正规搜索引擎、互联网档案馆（Internet Archive）等机构的运作。有些网站会添加显式白名单，比如只给占垄断地位的搜索引擎放行。这种做法会进一步巩固一个本已服务不佳的垄断，应当避免；到目前为止我们做到了。</p>
+                    <p>我们确实对站点的某些部分做了激进优化，并设法在遭受攻击时减少昂贵的操作。匿名读者偶尔会碰到其中某项措施；登录用户则不会。有趣的是，站点遭攻击时的响应时间常常比风平浪静、防御措施休眠时还要好。不过我们已经学乖了，不会以为问题已经解决；必须考虑当前措施失效之后的下一步。</p>
+                    <p>7 月 2 日，Google 宣布已联合美国联邦调查局（FBI）等机构端掉了一个名为"NetNut"的住宅代理网络。就目前而言，这次行动似乎确实让抓取攻击的水位有所下降。但经验表明，这种可喜的平静维持不了多久。Google 特意强调其 Play Store 现在会检查感染 NetNut 的应用，但对于"为什么把带住宅代理功能的应用上架到应用商店如此容易"这个问题，所有大厂商都保持沉默。</p>
+                    <blockquote>
+                        <p>最好能在整个互联网被迫躲进防御高墙、那个激发了无数创造力的开放网络消亡之前，找到更长久的解决方案。驱动这些攻击的行业似乎完全心安理得：掠夺完独立网站的内容后，把它们变成冒烟的弹坑——这种态度也同样施加于这颗星球及其经济。但我们中的一些人反对这种想法，并将与之抗争。但愿有一天，整个世界会决定让大语言模型及相关技术背后的公司遵守起码的道德标准。而在那之前，这种行为还会继续，我们别无选择，只能自卫。</p>
+                        <cite>—— Jonathan Corbet</cite>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">内核 / io_uring</span>
+                    <h2>io_uring 的无锁 MPSC FIFO 队列</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月15日</span>
+                        <span><a href="https://lwn.net/Articles/1081871/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>使用 io_uring 的进程往往同时抛接许多"球"；能让大量操作同时在途本来就是这套 API 的意义所在。因此，io_uring 子系统必须追踪大量需要在恰当时机执行的任务。在当前内核中，io_uring 使用标准的内核链表原语来跟踪这些工作项。而从 7.2 内核起，io_uring 将改用一种新的无锁多生产者单消费者（MPSC）队列，带来可观的性能提升。无锁算法通常很棘手，但这里使用的算法相对平易近人，很好地展示了这类算法的工作方式。</p>
+
+                    <h3>旧方式的缺陷</h3>
+                    <p>7.2 之前的 io_uring 任务队列基于内核的无锁单链表（llist）API。这一类型的核心是个简单结构：</p>
+                    <pre><code>    struct llist_node {
+	struct llist_node *next;
+    };</code></pre>
+                    <p>该结构被嵌入到包含实际数据的外层结构中，充当把这些外层结构串成链表的链环。</p>
+                    <p>尽管 llist 为性能而设计，但它对 io_uring 并不理想，原因有几点。llist 是单链表，实际上只能从头部访问。对于生产者添加、消费者移除的列表来说，llist 本质上是一个<strong>栈</strong>。而 io_uring 的工作项需要按接收顺序处理（哪怕只是出于基本的公平性），所以每轮处理前都要先遍历一遍任务队列把顺序反转。更糟的是，如果列表太长，io_uring 可能选择不处理完整个列表，但剩下的项已经被反转过，不能直接放回任务列表，于是还得维护一个单独的"已反转未处理"列表。最后，向 llist 添加项需要访问单一的头指针；这虽然无需加锁，但需要重试循环。对竞争激烈的列表来说，这些重试（以及相应的缓存行弹跳）会造成伤害。</p>
+                    <p>解决这些问题需要一种更契合 io_uring 需求的数据结构：多个生产者无锁、低竞争地放入工作项；每个列表只有一个消费者，且消费者应尽可能避免与生产者发生缓存竞争；当然，处理前反转列表的需求也应当消失。</p>
+
+                    <h3>无锁 MPSC 队列</h3>
+                    <p>解决方案就是由 Jens Axboe 提交的无锁 MPSC 队列，算法归功于 Dmitry Vyukov。该队列仍用 <code>struct llist_node</code> 串联表项，但列表的"头部"结构如下：</p>
+                    <pre><code>    struct mpscq {
+	struct llist_node	*tail;
+	struct llist_node	stub;
+    };</code></pre>
+                    <p>说"头部"其实有点误导，因为这里并没有指向列表头的指针（后面会讲到）。这个视图是给生产者用的，它们需要向列表<strong>尾部</strong>添加项。<code>stub</code> 是一个哨兵项，只有当它是列表中唯一的项时才在列表上——换句话说，即列表为空时。列表初始化时，<code>tail</code> 指针指向 stub 项，stub 的 <code>next</code> 指针为 <code>NULL</code>。向尾部添加节点通过这个短函数完成：</p>
+                    <pre><code>    static inline bool mpscq_push(struct mpscq *q, struct llist_node *node)
+    {
+	struct llist_node *prev;
+
+	node-&gt;next = NULL;
+	prev = xchg(&amp;q-&gt;tail, node);
+	WRITE_ONCE(prev-&gt;next, node);
+	return prev == &amp;q-&gt;stub;
+    }</code></pre>
+                    <p>新项的 <code>next</code> 指针先置为 <code>NULL</code>，表示它是列表末尾。然后 <code>xchg()</code> 调用原子地把新项的指针存入列表的 <code>tail</code> 指针，并返回其先前的值；如果列表为空，返回的就是指向 stub 的指针。随后把前一个表尾项（可能就是 stub）的 <code>next</code> 指向新项，添加即告完成。</p>
+                    <div class="info-box note">
+                        <p><strong>无锁算法的微妙之处</strong>：一旦 <code>tail</code> 指向新表项，该项就对全世界可见。这意味着新项的 <code>next</code> 指针必须在改变 <code>tail</code> 之前设置好。通常编译器或 CPU 都可能自作主张地重排这两个赋值，导致新 <code>tail</code> 在节点完全初始化之前就可见。但 <code>xchg()</code> 被定义为<strong>全屏障</strong>（full barrier），此前发生的操作（如对 <code>next</code> 的赋值）必须先对系统其余部分可见，交换才能进行。若没有屏障操作，就得在两个赋值之间手动插入屏障。</p>
+                    </div>
+                    <p>如果多个 CPU 同时向同一列表添加项，<code>xchg()</code> 会将它们串行化，保证 <code>tail</code> 有序更新。两个 CPU 同时执行 <code>xchg()</code> 时，一个会"胜出"先行，另一个随后。由于每次 <code>xchg()</code> 都返回 <code>tail</code> 的先前状态，每次添加都知道前一项在哪里，从而能正确设置 <code>next</code> 指针。整个过程不需要锁来维持列表一致性，也不需要重试循环，添加操作非常快，而且可以在任何内核上下文中执行。</p>
+
+                    <h3>消费者视角</h3>
+                    <p>消费者一侧稍微复杂一点。首先，消费者在 <code>mpscq</code> 结构之外单独维护一个表头指针——一个简单的 <code>struct llist_node</code> 指针，保存列表第一项的地址。这样分离的目的是让头、尾指针位于不同的缓存行，避免生产者与消费者之间的缓存竞争。移除第一项时，消费者把头指针传给：</p>
+                    <pre><code>    static inline struct llist_node *mpscq_pop(struct mpscq *q,
+					   struct llist_node **headp);</code></pre>
+                    <p>该函数要应对几种情形。列表刚创建（空状态）时，表头指针保存的是 <code>stub</code> 的地址。由于添加操作不改变头指针，这种情况会一直持续到第一次移除。此时的处理是：检查 stub 的 <code>next</code>——若为 <code>NULL</code> 则列表为空，返回 <code>NULL</code>；否则把头推进到 stub 的 <code>next</code> 所指的项，并把 stub 的 <code>next</code> 置回 <code>NULL</code>。此后 stub 就不再参与列表管理，直到列表再次被清空。</p>
+                    <p>确认列表上有项之后，下一步是判断它是否为<strong>最后一项</strong>。若还有后续项（<code>next</code> 非空），把头指针推进到下一项，返回原来的头项即可。若 <code>next</code> 为 <code>NULL</code>，说明列表中没有更多项了，<code>tail</code> 必须重新指回 stub。但这里有个转折：可能恰好有生产者正在同时添加新项，所以需要用比较交换操作尝试把列表重置为空：</p>
+                    <pre><code>	if (try_cmpxchg(&amp;q-&gt;tail, &amp;head, &amp;q-&gt;stub)) {
+	    *headp = &amp;q-&gt;stub;
+	    return head;
+	}
+	return NULL;</code></pre>
+                    <p><code>try_cmpxchg()</code> 把 <code>tail</code> 与 <code>head</code>（即列表中仅剩的那一项）比较。若相等，则原子地把 <code>tail</code> 指回 stub，列表恢复初始的空状态，并返回最后一项。若失败，说明消费者与某个生产者发生了竞争，生产者已在背后改动了 <code>tail</code>。这时返回 <code>NULL</code>，最后一项留在列表上，等消费者下次重试。消费者可以用 <code>mpscq_empty()</code>（检查 <code>tail</code> 是否指向 stub）区分这种情形与"列表真的为空"。</p>
+                    <p>这就是全部 API。代码位于 <code>io_uring/mpscq.h</code>；目前它没有放到 <code>lib/</code> 下供内核其余部分使用——当然，如果 io_uring 之外出现感兴趣的使用者，这一点可以改变。</p>
+                    <p>从 7.2 起，这种新队列类型被用于 io_uring 内部的几个任务列表。据补丁描述，结果是性能显著提升、开销降低——更多的工作更快完成，同时内核态执行时间反而减少。io_uring 代码也得到简化，不再需要反转列表或维护"已移出未处理"的单独列表。总而言之，这似乎是一个水到渠成的优化。</p>
+                    <div class="info-box success">
+                        <p><strong>后记</strong>：这个主题一度面临被略过的风险，但它在 LWN 公共选题页（Project Leader 级别以上订阅者可用）上获得了足够多的票数，作者决定再看一眼。感谢认为这项开发值得成文的 LWN 读者们。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">文件系统 / 测试</span>
+                    <h2>文件系统测试专题</h2>
+                    <div class="article-meta">
+                        <span>作者：Jake Edge</span>
+                        <span>发布日期：2026年7月15日</span>
+                        <span>会议：LSFMM+BPF 2026</span>
+                        <span><a href="https://lwn.net/Articles/1082342/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>文件系统开发者的聚会讨论文件系统测试并不令人意外；多年来这一直是 Linux 存储、文件系统、内存管理与 BPF 峰会（LSFMM+BPF）的保留节目，2026 年峰会也不例外。这次由 Ted Ts'o 主持讨论；他有几个话题要提，包括他察觉到 ext4 在稳定内核中的回归越来越多，以及可以做些什么来减少这种情况。与历年类似的议程一样，大家对协作共享测试输入和输出很有兴趣，但如何把这些信息集中起来，至今仍是文件系统社区未解的难题。</p>
+                    <p>Ts'o 首先指出，他最近注意到稳定内核中的 ext4 回归变多了。部分原因是 ext4 开发者一直在做 folio 支持之类的特性，其中一些补丁"存在微妙的依赖要求，自动化流程未必能捕捉到"。</p>
+                    <p>另一个因素是补丁被更频繁地向后移植到旧内核，他说，可能有 LLM 的辅助。他见过一些特性被回移到 6.1 和 6.6 稳定内核，结果在那些内核中造成 bug。有些 bug 导致内核在跑 fstests 测试套件中的某些测试时崩溃。由于回移的补丁超过一打，"要真正找出这些问题相当痛苦"。他想知道，那些没有退出稳定内核自动补丁挑选机制的其他文件系统，是否也遇到了同样的问题。</p>
+                    <p>他搭建了一个测试运行器，监控发往稳定内核的补丁，并在打上这些补丁的内核上运行 fstests。不过他还没时间审查结果、与基线对比找出回归。这是可以自动化的，只是还没做到那一步。</p>
+                    <p>Ts'o 说，任何能用 fstests 测试的文件系统（"绝大多数都可以"）都可以加入他的测试运行器，与稳定内核候选补丁一起测试。他有能力这么做，并能通过邮件提供报告。他还广而告之：他在找一位 Python 程序员，开发一个比较两次测试输出、找出回归的程序。</p>
+                    <p>Ts'o 还在为他的 xfstests-bld 测试装置做自动化。他加入了 Git 二分（bisection）支持，包括内核在测试中崩溃的情形。他乐意帮助感兴趣的人搭建。kdevops 是文件系统开发者可用的另一个选项。他猜测 LLM 产生的 bug 报告和补丁会带来更多活动；"测试是我们唯一能跟上节奏的方式"。</p>
+                    <h3>共享测试结果</h3>
+                    <p>随后他把话筒交给大家分享文件系统测试的想法。一位与会者建议建立测试矩阵和测试结果的共享数据库，并指出这个想法以前就有人提过。其他人表示同意，但指出测试环境的差异——真实硬件、虚拟机、不同类型的存储等——使得不同测试工作的结果难以比较。</p>
+                    <p>Chuck Lever 说 kdevops 项目有一份 fstests 运行结果的存档，也许是个好起点。他还刚刚得知内核网络子系统（netdev）把持续集成（CI）测试结果存在 patchwork 里——patchwork 能把数据与被跟踪的补丁关联存储，netdev 就用它保存 CI 结果。</p>
+                    <p>Ts'o 说他曾请 Konstantin Ryabitsev 建一个测试结果邮件列表并在 lore.kernel.org 上存档。大约一年前提出请求时，Ryabitsev 对以这种方式存储自动化测试结果并不热心，大概是担心数据量太大。如果大家觉得这样的列表有价值，Ts'o 可以再提一次。</p>
+                    <p>两位与会者介绍了各自公司内部用于测试报告的仪表盘。Ts'o 建议任何这类开源成果都应发到 fstests 邮件列表，因为可能有其他开发者会用。Lever 说，开发一个带监控仪表盘的中央测试结果数据库是每届峰会都会冒出来的想法；他觉得这可能是个"登月工程"，但也许可以争取 Linux 基金会的帮助。Ts'o 认为基金会觉得 KernelCI 项目已经在解决这个问题，但那个项目并不适合文件系统测试。</p>
+                    <p>Ts'o 说，与其创建一个像 KernelCI 那样需要持续筹款维护的项目，不如争取一次性资金简单开发一个工具。他建议先让文件系统开发者就需求达成一致——也许围绕某人"凭感觉写出来"（vibe-coded）的原型——从而获得资金开发生产级版本。"我们应该私下碰碰头。"</p>
+                    <h3>测试失败清单与 flaky 测试</h3>
+                    <p>Ts'o 想提的另一件事是他维护的测试失败清单文件。它们类似 fstests 的 expunge 文件（列出不应运行的测试），但是基于测试无法通过的内核版本。它们覆盖按文件系统类型的失败，也覆盖文件系统类型与测试场景组合的失败；记录了在各长期稳定（LTS）内核版本中不能工作、而且很可能永远不会工作的测试。</p>
+                    <p>他说发行版倾向于直接选用与其内核对应的旧版 fstests。但他不想维护多个 fstests 版本，而且认为运行最新测试有价值：新版 fstests 有时会指出某个 bug 在哪个内核版本被修复，这可能提示有用的向后移植。运行新版 fstests 的确会在结果中产生更多噪音，因为有更多测试在 6.1、6.6 之类的内核上永远不会通过——这正是他维护失败清单文件的原因。</p>
+                    <p>这些文件目前放在他的测试装置里，但他想知道是否应该挪到别处、协作维护。他的重心是 ext4，所以 ext4 部分覆盖很全。Lever 建议把测试失败信息加进 fstests 仓库，但也指出可能会有"应该去修测试"的反对声音。Ts'o 说 fstests 维护者已明确表示对追踪"什么在什么版本被修好了"不感兴趣。这有一定道理，因为不同人以不同方式使用这些测试；Ts'o 只跟踪 LTS 内核，而发行版会想跟踪自家内核，后者可能偏离上游版本。</p>
+                    <p>Christian Brauner 提出了"flaky"测试（时过时不过的测试）的问题。Ts'o 说他有一个内部版本的测试框架，允许把测试标记为 flaky：如果失败，会再跑三次，只有全部失败才报告。他一直想把这个有用的功能加进公开版本，但还没找到时间。</p>
+                    <p>不同的人为不同内核版本维护着各自的 expunge 文件，Ts'o 说把它们汇集到一起会很好。既然 fstests 不是合适的地方，也许内核树是，他建议。讨论至此渐息，会议结束。</p>
+                    <div class="info-box note">
+                        <p>［作者注：对文中可能的错误表示歉意。会场声学条件很糟糕，听录都困难，可能存在误解和张冠李戴。］</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">安全 / BPF</span>
+                    <h2>用 BPF 为运行中的内核抵御漏洞利用</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年7月13日</span>
+                        <span>会议：LSFMM+BPF 2026</span>
+                        <span><a href="https://lwn.net/Articles/1081546/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Cisco 在向公司大量运行定制内核的设备部署安全补丁方面面临一些不寻常的挑战。John Fastabend 在 2026 年 LSFMM+BPF 峰会上介绍了他用 BPF 阻止漏洞利用的工作。这一技术能大幅缩短响应内核漏洞所需的时间，但除非内核加入更多钩子，否则无法完全生效。</p>
+                    <p>Fastabend 开场说，网络交换机涵盖很大的硬件范围：从小型单机架系统一直到巨大的高速设备。Cisco 支持的每个平台都有自己的内核团队，用 Yocto 构建定制内核。任何时刻，这些团队都在支持大量不同的内核——所幸大多是稳定内核，他补充道。所有这些被广泛部署、联网、运行定制内核的设备，对攻击者是诱人的目标。</p>
+                    <p>Cisco 当然会发布安全更新，但从识别问题、编写修复、构建新版本、测试、交付客户到交换机完成更新，都需要时间——尤其是重启交换机会导致网络中断，客户需要计划和管理停机窗口，整个流程从发现漏洞到修补完最后一台脆弱系统可能耗时数月。Fastabend 工作的目标是用 BPF 实时观测攻击，并允许按需应对而无需重启。理想情况下整个过程只需几分钟。"我们离那还有一段距离，但那是梦想。"</p>
+                    <p>开源的基于 BPF 的监控与执法工具 Tetragon 被用来收集运行中系统的"大量数据"。任何时候，交换机上的监控设施都能显示哪些程序在何时运行、建立了哪些网络连接，数据存入时序数据库。Tetragon 目前依赖用户态 agent 保持运转，但 Fastabend 和同事一直在努力让 BPF 组件在攻击者杀死用户态 agent 后仍能存活。他解释说，当新 CVE 披露时，他希望能查询数据库确认该漏洞是否曾被利用过。这些数据还能用来发现攻击征兆，比如数据外泄或与命令控制服务器的连接。</p>
+                    <p>一旦识别出漏洞利用，就可以直接从 BPF 阻断它。如果触发利用需要某个特定系统调用，BPF 可以覆写该系统调用的返回值来拒绝操作。也可以用跟踪点验证内核内部函数的参数是否正确。Fastabend 的团队同时使用 uprobes 和 kprobes 来做这件事。不过这些探针不能可靠地修改返回值，所以修改返回值用的是 Linux 安全模块（LSM）钩子。</p>
+                    <p>Andrii Nakryiko 问这套设计每秒要检查、可能拦截多少事件。Fastabend 解释说，网络包的路由主要由专用硬件完成，内核只需管理控制面流量和用户态应用。总体上每秒只有数百或数千个事件，而不是数十亿——即使交换机在转发数十亿个包。</p>
+                    <p>一个复杂之处是团队还想对内联函数下探针。这可以通过调试符号在原始偏移处设探针来实现。Cisco 有一个构建农场生产所有内核包，构建机保存所有构建的 build ID 和调试信息（包括 BTF 和常规调试符号）。这些信息既用于调试客户问题，也让编写针对已部署内核具体结构的内核热补丁或 BPF 程序成为可能。</p>
+                    <p>Jakub Sitnicki 提到，他在给部分内联的函数附加探针时遇到过问题，因为函数被内联到哪里的信息目前不在内核的 BTF 中，不过这个问题正在解决。Alan Maguire 说他为会议第二天提交的一个议题会覆盖这个话题。</p>
+                    <h3>阻断漏洞利用</h3>
+                    <p>Fastabend 随后展示了一个 BPF 程序示例，可用于阻断最近的 copy.fail 漏洞的影响。该程序只是让 <code>splice()</code> 系统调用在以会触发 bug 的方式被调用时返回错误。他的团队把这类 BPF 程序称为"护盾"（shields）。他承认，这种事技术上用常规的内核热补丁（live patch）也能做，但 Cisco 有太多并行的产品线、运行着许多不同的稳定内核，全部打补丁需要巨大的开发者时间投入。而用 BPF，同一个程序通常能在所有受支持的内核上运行——只需写一次，然后在每个内核上自动测试以确保不会破坏任何东西。</p>
+                    <p>BPF 护盾好用的时候很好用，但偶尔也有磕绊。Fastabend 说，他的团队常常发现某个 CVE 所在的内核子系统里没有任何可用来构建护盾的钩子。最近就有一个可利用的释放后使用（use-after-free）bug，在问题源头附近完全没有方便的挂钩点。团队最终只能挂钩可能触发该 bug 的系统调用，但代码因此复杂得多。</p>
+                    <p>因此，Fastabend 最希望看到的内核改动，是对 <code>ALLOW_ERROR_INJECTION()</code> 采取更包容的政策——这个宏用于标记可接受内核错误注入框架作用的函数。该框架通常用于测试，但它允许用自定义 BPF 程序覆写内部函数的返回值，与 Fastabend 的用例完美契合。可惜只有一小部分内核函数被标记为可错误注入。理想情况下，他希望能用 BPF 修改任何"返回一个与零比较的整数、且错误沿调用栈向上传播"的函数的返回值。符合这个条件的函数很多，他说，这些函数都应该有 LSM 钩子。他问能否让这些函数轻松地被 BPF 挂钩。</p>
+                    <p>Nakryiko 认为错误处理代码的复杂性决定了这类改动只能是手工过程。Alexei Starovoitov 建议对 Rust 代码应该可以自动完成，因为 Rust 编译器生成的清理逻辑结构可预测；对 C 代码，他建议请提交漏洞报告的人顺带引入相应的 LSM 钩子。作者（Daroc Alden）建议用 Coccinelle 来做这种修改。</p>
+                    <p>如果最终只能手工来做，Fastabend 认为最重要的目标是内核的 netlink 代码——不知为何，他的团队观察到大量攻击瞄准内核的这个区域。</p>
+                    <p>挂钩内核内部函数以防御漏洞的技术，对 Linux 内核的其他用户当然也有用。他演示的护盾只有寥寥几行代码；不难想见，只要对内核有足够的钩子覆盖，这种简单修复能让公司或发行版以小得多的代价在多个内核版本上部署漏洞缓解措施。话虽如此，向相关区域添加 LSM 钩子将是一个大改动，可能需要不少时间——前提是 LSM 维护者认可这项工作。</p>
+                </div>
+            </div>
+
+            <!-- 文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">网络 / BPF</span>
+                    <h2>直接从 BPF 发送数据包</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年7月14日</span>
+                        <span>会议：LSFMM+BPF 2026</span>
+                        <span><a href="https://lwn.net/Articles/1081696/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>基于 BPF 的安全监控工具 Tetragon 用 BPF 监控运行中内核的各个方面并执行用户指定的策略。但它要把数据发给一个用户态进程，由后者转发到网络中其他位置的中央监控服务。这构成一个薄弱点：如果攻击者能杀死 Tetragon 的用户态 agent，它就无法正常上报现场情况。Song Liu、Mahé Tardy 和 Liam Wiseheart 在 2026 年 LSFMM+BPF 峰会上介绍了他们去除用户态 agent 依赖的工作。</p>
+                    <p>Wiseheart 澄清他在 Meta 工作、并不参与 Tetragon，但他对解决同一个问题——让 BPF 程序完全脱离用户态组件运行——很有兴趣。目前 Meta 的做法是在系统启动时固定（pin）程序，这至少能防止用户态组件被杀后程序被移除，但没有完全回避问题。</p>
+                    <p>Tardy 解释说，Tetragon（想必 Wiseheart 的类似程序也一样）与用户空间的通信通过 ring buffer 进行。用户态组件主要负责从 ring buffer 读消息、发给远程服务器、接收回复、再把回复放回 ring buffer。如果 BPF 程序能直接与远程服务器对话会高效得多。BPF 程序已经能拦截入站网络包；缺的是直接从 BPF 发送数据的能力。</p>
+                    <p>2025 年，Tardy 等人曾提出一个使用 <code>splice()</code> 的方案，但不受欢迎。当时 Andrii Nakryiko 认为同步方案大概不适合 BPF。那次会议上内核开发者建议使用 netconsole 代码——它让内核把原本发往串口的日志消息发送到远程位置。</p>
+                    <p>"我们试了，"Tardy 说，看起来行得通。netconsole 背后的内核基础设施 netpoll 允许内核代码从任何上下文发包，并绕过常规网络栈，这很方便。于是他们写了一个 kfunc 并提交了补丁集（当年晚些时候又有更新版）。使用时，用户态加载程序把网络地址信息传给 BPF 程序，后者调用 <code>bpf_netpoll_create()</code> 创建 netpoll 上下文，然后用 <code>bpf_netpoll_send_udp()</code> 发送携带任意数据的 UDP 包。</p>
+                    <p>Tardy 接着做了个小演示。他启动一台虚拟机，运行一个 demo agent 安装 BPF 程序，向宿主机定期发送 ping，并在另一个终端展示这些消息的到达。然后他杀掉用户态 agent——ping 依然源源不断。他补充说，新的发包函数可以与内核现有的加密 API 结合以发送加密数据包；目前演示用的是简单对称密钥，但可以使用更复杂的方案。</p>
+                    <p>尽管 netpoll 方案可行，"我们收到一些反馈说 UDP 是邪恶的，"Liu 说。一方面，netpoll 发出的包绕过常规网络栈，这意味着如果 BPF 程序发送太多流量，它可能抢走其他进程的带宽，且没有真正的手段限制争用。一位听众建议其实不必用 netpoll 的"任意内核上下文发送"能力——BPF 接口可以派生一个内核线程、以常规方式发包，让网络代码对流量应用所有正常的网络设置。</p>
+                    <p>Liu 说，就在演讲前十小时，他们试验了一个改发 TCP 的版本。网络方向的人对此更放心，但这会导致 kfunc 无法在原子上下文中使用——内核线程方案也一样。这引发了一场关于 UDP 与 TCP 优劣的长时间讨论，不过在场多数人似乎站在支持 UDP 一边。Alexei Starovoitov 看不出偏好 TCP 的理由，特别是 netpoll 已经存在并在内核中使用。John Fastabend 认为 UDP 对 Tetragon 的用例足够了。Wiseheart 指出，坏掉的安全模块钩子之类的问题更难干扰基于 netpoll 的日志上报，因为 netpoll 绕过了常规网络栈。</p>
+                    <p>Starovoitov 分享了这种健壮性的实例：他曾遇到一块网卡部分损坏、无法收包，把整个网络栈搞乱了，但 netpoll 代码在那台设备上仍能发包。另一人反驳说 netpoll 方案唯一的真正问题是宿主机上的带宽管理，但那是个严重问题。Starovoitov 说 netpoll 只使用网卡上的单个队列，他怀疑这不足以造成问题。Liu 请 Starovoitov 帮忙说服网络维护者接受这一观点，后者答应了。</p>
+                    <p>Daniel Borkmann 问究竟有多少网卡驱动支持 netpoll，它是否是在所有驱动上都能用的通用设施。Starovoitov 认为约 90% 的驱动<strong>不</strong>支持 netpoll——有的是有意为之，有的只是年久失修；只有 Meta 常用的那些驱动确定处理正确。没有人对此提出异议，这让 netpoll 是否真是最佳方案变得不明朗。可惜此时会议时间已到。</p>
+                    <div class="info-box note">
+                        <p><strong>后续进展</strong>：会后 Tardy 等人继续推进，7 月 6 日提交了新补丁集——允许 BPF 程序创建并使用 UDP 内核套接字，替代 netpoll 方案。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文章 6 -->
+            <div class="article" id="article6">
+                <div class="article-header">
+                    <span class="article-category">开发工具 / 终端</span>
+                    <h2>Kitty 追上了鼠标</h2>
+                    <div class="article-meta">
+                        <span>作者：Lee Phillips（特约撰稿）</span>
+                        <span>发布日期：2026年7月9日</span>
+                        <span><a href="https://lwn.net/Articles/1080821/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Kitty 是一款运行于 Linux、macOS 和 BSD 的终端模拟器，以速度和图片显示、高级字体处理等特性著称。它开发活跃；最近的一个大版本发布带来了新层次的鼠标支持。本文将介绍其中一些特性，并展示这个程序如何还能用作文本应用的平台。Kitty 是自由软件，以 GPLv3 发布。</p>
+
+                    <h3>特性</h3>
+                    <p>Kitty 是基于 GPU 的终端模拟器。和当下其他几款流行的终端模拟器一样，GPU 提供的带宽足以瞬间把数兆字节的文本倾泻到屏幕上。当不小心用 <code>cat</code> 显示一个巨大文件时，这是个可喜的美德；GPU 还让回滚缓冲区的浏览如丝般顺滑。Kitty 的设计追求低延迟——即按键与相应字符出现在屏幕上之间的时间。用户通常不会有意识地察觉这个属性，但它对"终端骑师"的满意度和身心健康有重要影响。</p>
+                    <p>Kovid Goyal 创造 kitty 的起因是他对当时所用终端模拟器的速度不满，决定做一个更快的。随后他开始添加自己想要而现有程序不支持的功能，从彩色下划线开始。</p>
+                    <p>Kitty 可以通过配置文件彻底定制。用户可以为几十条命令定义键盘快捷键或鼠标动作。选项远超常见的外观和快捷键设置；例如有多个性能调优参数。在近期版本中，配置文件保存后修改立即生效。</p>
+                    <p>Kitty 的字体处理很灵活——只要"字体"不包括位图字体：kitty 不支持、也不会支持位图字体，因为它们不能任意缩放。Kitty 可以使用任何等宽 TrueType 或 OpenType 字体，并用快捷键即时改变字号。支持连字（谢天谢地，可以关掉）、OpenType 替代字形和可变字体。可以为常规、斜体和粗体文本分别定义字体。用户还可以在配置文件里告诉 kitty 哪些 Unicode 码位（或码位区间）用哪个字体——比如你钟爱的编程字体 Unicode 覆盖不佳，或者某些字形别的字体渲染更好。还有参数可以调整字体度量、下划线和删除线的位置粗细，甚至 kitty 将文本合成到背景色上的策略也可以调。</p>
+                    <p>在用户允许的情况下，kitty 可以在终端内运行的应用所选颜色导致前景与背景对比度不足时覆盖这些颜色。正如文档指出的："终端发烧友整天盯着文本看，所以把文本渲染做到恰到好处非常重要。"</p>
+
+                    <h3>Kittens（小猫）</h3>
+                    <p>Kitty 附带一批称为"kittens"的辅助程序，为主程序提供额外功能和定制。它们通过快捷键或在 shell 中执行 <code>kitten</code> 命令加参数来调用。不带参数的 <code>kitten</code> 命令会列出可用的 kittens；任何一个都有 <code>-h</code> 参数提供简要文档。Kittens 是用 Python 编写的外部程序，通过一套 API 控制 kitty，并可访问 kitty 窗口及其回滚缓冲区中的文本——kitty 因此被设计为可由用户扩展。</p>
+                    <ul>
+                        <li><strong>ssh kitten</strong>：包装系统 <code>ssh</code> 命令，确保远程连接与 kitty 协作良好（主要是传送所需的 terminfo 设置并在远程机器上启用 shell 集成），还带来复用已有连接等便利。</li>
+                        <li><strong>字体与主题</strong>：一个 kitten 可以列出并预览已安装的可用字体；主题选择器可以在多得过分的贡献配色中交互选择。</li>
+                        <li><strong>icat</strong>：利用"终端图形协议"直接在终端里显示各种常见格式的图片（含 GIF 动图）。图片可以是本地文件，也可以通过 HTTP(S) 或 FTP 获取；只要远程机器装有 kitty，甚至可以直接经 SSH 工作。</li>
+                        <li><strong>其他</strong>：show-key 显示按键对应的键码（类似 <code>xev</code>）；剪贴板 kitten 支持经 SSH 复制粘贴各类数据（如图片）；Unicode 输入 kitten 交互式搜索选择 Unicode 字符；"hints 模式"让屏幕上任何可见 URL 一键在浏览器打开（原理类似 Vimium）；远程控制 kitten 可向指定窗口发送文本、改变属性、开关窗口和标签页等。</li>
+                    </ul>
+                    <p>Kitty 还有文档所称的"shell 集成"，适用于 Zsh、fish、Bash 等主流 shell（Nushell、Xonsh 等冷门 shell 有第三方集成）。它提供了一组让命令行工作更顺手的功能和快捷键：用默认编辑器打开回滚缓冲区内容、最近一条命令的输出或当前命令；kitty 命令的 Tab 补全；以及注入 shell 环境的实用函数，比如把当前 shell 环境（含全部环境变量）克隆到新窗口或标签页的 <code>clone-in-kitty</code>，和经 SSH 用本地编辑器编辑远程文件的 <code>edit-in-kitty</code>。</p>
+
+                    <h3>新协议</h3>
+                    <p>Kitty 创造了多个新的终端协议，以转义码集合的形式实现。其中一些协议支撑了 kitty 的各种把戏，比如驱动上述 <code>icat</code> 命令的终端图形协议。（熟悉较老的 sixel 协议的人可能会问 kitty 为何不用它；原因是 kitty 作者想支持的一些特性 sixel 图形不支持。）另一些 kitty 协议改进了其他遗留协议，比如实现更灵活键盘处理的协议。还有的协议实现了彩色和带样式的文本下划线、把多种类型的数据（图片、文本样式）复制到剪贴板、改变鼠标指针形状，以及与 GUI 文件管理器之间的文件拖放——最后这项得益于最新大版本带来的增强鼠标支持。</p>
+                    <p>其中一些协议已被其他项目采用：Ghostty、Wezterm 等多款终端模拟器都受益于 kitty 的终端图形协议。它还被一长串终端应用和编辑器插件使用。作者在 Neovim 中使用的一个增强是 snacks 插件的图片组件：它把图形嵌入 Markdown 缓冲区中出现图片语法的位置（或选择在弹出窗口显示），还会调用 Typst 和 LaTeX 处理数学输入并把结果直接显示在缓冲区里。因为 Typst 非常快，编辑 Typst 文档时用户可以获得数学公式的实时预览。gnuplot 和 Julia 也能用该协议把图形输出直接嵌入各自的 REPL——在 REPL 里保留"图与生成它的命令"并列的记录有时非常有用，而图形显示在单独窗口时这种关联就丢失了。</p>
+
+                    <h3>界面构建器</h3>
+                    <p>Kitty 窗口可以纵横分割成任意数量的子窗口，每个子窗口有自己的标题、背景色等属性。这些组件窗口可以重排成各种布局并任意调整大小，类似 dwm 这样的平铺窗口管理器。窗口布局可用快捷键保存为"会话"（session）——一个文本文件，记录布局细节和会话创建时每个窗口正在运行的程序。这些会话可以在很大程度上取代 tmux 之类的终端复用器。</p>
+                    <p>在早期版本中，排列和调整会话窗口只能用键盘。虽然作者一般更偏爱键盘，但那并不理想。kitty v0.47.0 的新鼠标处理支持以可视方式调整和移动窗口，界面设计周到：可以拖动窗口分隔线，也可以拖放窗口重新排列，甚至能把会话中的窗口拖出来变成独立窗口。</p>
+                    <p>会话可以用 <code>kitty --session</code> 参数加载，也可以用快捷键加载或切换。加载会话时，之前每个窗口里运行的程序都会启动；保存会话时活跃的、用 ssh kitten 建立的共享 SSH 连接也会被重新激活。会话的明显用途是为各种项目或任务定义环境：系统管理员可能想要一个会话，多个窗口分别连着不同服务器；一个编程项目可以包括代码编辑器、REPL 和显示文档的窗口。</p>
+                    <p>把会话与 kitty 的远程控制能力结合起来，它们就成了简单文本界面（TUI）应用的基础。制作这样一个应用，只需创建所需布局并保存为会话；组件窗口中运行的程序可以处理用户输入、彼此收发文本和命令。这样看来，kitty 变成了一种 TUI 构建套件。作者用这套机制构建了一个简单的图片浏览器：fzf 在一个窗口过滤显示文件列表，用户选中图片文件后，另一个窗口用 <code>icat</code> 显示图片，第三个窗口处理 <code>exif</code> 命令的输出显示图片信息。</p>
+
+                    <h3>结语</h3>
+                    <p>作者几年前因对其高级图片显示等功能好奇而尝试 kitty，如今它已不可或缺。Kitty 立志超越终端模拟器；它为文本化的人机交互提供了丰富的环境。但对于只想要一个字体支持良好的快速终端的用户，这些琳琅满目的功能不会碍事——可以循序渐进地探索、按需纳入工作流。Kitty 一般可从发行版仓库获取；想要更新版本的人可参考安装说明进行二进制安装或从源码构建。其 GitHub 页面显示有 400 多位贡献者，其中 Goyal 贡献了绝大多数提交。它由 Python、C 和 Go 编写，还夹杂少量其他语言。</p>
+                    <p>Kitty 至少有一个时常引起混淆的问题：它的名字与 Windows 上一款网络客户端兼终端模拟器撞车。最后，因为肯定有读者在想这个问题：是的，你可以在 kitty 里玩 Doom。</p>
+                </div>
+            </div>
+
+            <!-- 文章 7 -->
+            <div class="article" id="article7">
+                <div class="article-header">
+                    <span class="article-category">开发工具 / 编译器</span>
+                    <h2>QBE 1.3：元编程、性能与跨平台支持</h2>
+                    <div class="article-meta">
+                        <span>作者：Arshal Aromal（特约撰稿）</span>
+                        <span>发布日期：2026年7月10日</span>
+                        <span><a href="https://lwn.net/Articles/1080519/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>QBE 是 Quentin Carbonneaux 开发的紧凑编译器后端，是 LLVM、GCC 等大型后端的轻量替代。QBE 的设计目标是小到单个开发者就能理解，它使用静态单赋值（SSA）中间表示（IR），支持 C ABI，并且是 Hare 语言和 <code>cproc</code> C11 编译器等项目的后端。前端直接生成 QBE IR 的文本形式；QBE 负责寄存器分配、优化和本地代码生成，输出目标架构的汇编。</p>
+                    <p>QBE 采用 MIT 许可证，有 38 位贡献者，其中 Carbonneaux 遥遥领先。2026 年 6 月 2 日，1.3 版发布。发布说明称这是自 2022 年 1.0 以来最重大的更新：新增约 7,000 行代码、删除 1,500 行，引入了多项架构性改动，旨在提升 QBE 编译产物的性能、通过元编程简化后端开发，并扩展平台支持。</p>
+
+                    <h3>极简主义生态</h3>
+                    <p>QBE 与其他极简编译器项目——如 Vladimir Makarov 的 MIR 和 Dmitry Stogov 的 IR——占据同一细分领域。在 1.3 发布后的讨论中，参与者指出这些系统有着植根于传统 C 编程范式的共同技术血统，但优先级差异明显。MIR 常常专注于函数内联等激进优化，而 QBE 优先考虑编译速度和小而可维护的代码库。这种设计哲学让 QBE 本身成为一份紧凑的传统 Unix C 实现，对新人可能有挑战，但一旦理解，就会发现结构简单、额外复杂度极少。最终的二进制文件和对外 API 都保持精简。</p>
+
+                    <h3>缩小 CoreMark 性能差距</h3>
+                    <p>1.3 版的一个主要动机是 QBE 生成代码的性能与项目既定目标——达到"<code>gcc -O2</code>"约 70% 的性能——之间的差距。早前用 CoreMark 套件测量的结果更接近 40%。</p>
+                    <p>据发布说明，弥合差距的动力来自贡献者 Roland Paterson-Jones 的建议：把 CoreMark 作为具体的优化基线。性能剖析发现 CoreMark 基准自身的少数热点函数（尤其是 <code>ee_isdigit()</code> 和 <code>crcu8()</code>）是开销大户。虽然这些函数属于边缘情形——CRC 最好用预计算表而非裸算术实现——但它们代表了底层负载消耗执行时间的那种紧凑、CPU 密集的代码段。</p>
+                    <p>为此，1.3 版引入了几个经典优化 pass：全局值编号（GVN）与全局代码移动（GCM），使编译器能消除冗余计算并将其移出热点路径；此外还有针对性的循环优化和用于简化控制流图的 if 消除。</p>
+                    <p>函数内联经过大量讨论后最终被推迟。QBE 采用严格的流式逐函数编译模型，逐个解析和编译函数以保持最小内存占用；Carbonneaux 解释说，推迟内联是为了避免破坏这种流式架构。尽管缺了这一项，新的优化 pass 仍把生成代码在未修改 CoreMark 上的性能提升到其他编译器的 63% 以上，在手动内联关键例程的基准上则达到了 70% 的目标。新优化在更现实的负载上同样奏效：Carbonneaux 测得 Hare 语言测试套件的编译产物运行时性能比 QBE 1.2 提升 33%。注意这衡量的是编译出的 Hare 测试程序跑多快，而不是 QBE 自身编译多快——QBE 不能自举，因此它实现的任何优化都不影响其自身的编译速度。</p>
+
+                    <h3>面向指令选择的元编程</h3>
+                    <p>该版本还重造了指令选择。QBE 历来依赖一种受 Ken Thompson 的 Plan 9 C 编译器启发的自底向上树编号算法。它虽然可用，但直接用纯 C 实现需要精巧的手写逻辑来处理算术运算符的结合律和交换律，使添加新架构后端变得繁琐。</p>
+                    <p>Carbonneaux 在发布说明中表示，用元编程解决这个问题是长期以来的目标。1.3 版引入了 <code>mgen</code>——一个基于 OCaml 的元编程工具，从声明式的类 Lisp 指令模式生成 C 代码。后端开发者直接在源码注释中书写这些模式；QBE 构建时，<code>mgen</code> 扫描后端源码并把生成的 C 代码内联到模式下方。</p>
+                    <p>生成的代码自底向上处理函数中指令的有向无环图。在树编号阶段，子图可能呈现的每种唯一形状被赋予一个数字编码。以前把这些编码变成目标汇编指令需要手写 C 代码；1.3 用 <code>mgen</code> 生成的代码取代了其中大部分。构建时，工具计算哪些模式可能匹配给定的形状编码并生成位集存储；QBE 编译函数时，查一下对应树编号的位集就能快速知道哪些模式匹配。若选中的模式含有需要捕获的变量，<code>mgen</code> 会为其生成专门的匹配器程序——编译成简化的字节码语言、在编译期解释执行。这种方式显著降低了手工复杂度，Carbonneaux 预计它未来还能支持更高级的模式识别，比如在优化 pass 中识别复杂的位旋转惯用法。</p>
+
+                    <h3>Windows ABI 与共享对象</h3>
+                    <p>除了性能和可维护性，QBE 1.3 还扩展了实际的平台支持：新增了由开发者 Scott Graham 贡献的 Windows x64 ABI 后端，通过给 QBE 传"<code>-t amd64_win</code>"参数即可面向 Windows。Unix/Linux 系统使用的 System V AMD64 ABI 与 Windows x64 ABI 在寄存器使用、栈对齐、影子空间管理等方面差异巨大。由于这些差异是根本性的，Windows 实现基本独立成篇；正如 Graham 所说，这种隔离让 Windows 支持代码可以使用他略有不同的编码风格，而不污染 System V 实现。</p>
+                    <p>此外，QBE 1.3 引入了位置无关代码（PIC）支持，能够在 ELF 系统上生成原生共享对象。共享库生成的主要障碍是通过全局偏移表（GOT）间接访问全局变量。QBE 1.3 在 IR 层面解决了这个问题：为外部符号引入一个标志，标记其为动态加载；访问这样的变量会隐式使用一个辅助函数，为动态链接器执行重定位提供位置。这一改进让基于 QBE 的语言除了以前就能生成的静态链接可执行文件之外，还能产出模块化的动态链接程序。</p>
+
+                    <h3>遗留限制与生态影响</h3>
+                    <p>发布后的社区讨论既凸显了项目的进步，也点出了尚存的限制。Windows 支持的加入扫除了一个关键障碍——此前不少开发者视其缺失为面向桌面项目的一票否决项。</p>
+                    <p>然而，QBE 对极简 C 的严格坚持仍然构成陡峭的学习曲线。一个未解决的重大限制是缺少原生的源码级调试信息生成（如 DWARF 或 PDB）。虽然 Hare 等项目承担了在 QBE 之上构建完整 DWARF 支持的复杂任务，但后端本身仍无法生成调试信息。其他长期争论也依然存在，包括 QBE 自身无法编译自己的事实——QBE 只是编译器后端，要自举就得给项目加个 C 前端。但正如发布讨论中一位评论者所言，自举的后端被迫在所有事情上依赖自己的代码生成，一些编译器工程师认为这是持续打磨后端优化质量的有益压力，因为项目没有别的编译器可以退路。</p>
+                    <p>尽管有这些限制，QBE 依然提供了一种非常独特的取舍：性能可堪一比、对外接口简单的后端。凭借经过验证的优化、更灵活的指令选择流水线和更广的平台支持，1.3 版让 QBE 对那些需要小巧、可理解后端而又不想牺牲太多性能的项目来说，成为更可行的选择。</p>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for July 16, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1081917/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全</h3>
+                    <h3>许多旧版 shim 仍被安全启动接受</h3>
+                    <p>CMU CERT 协调中心发布公告：许多存在可利用漏洞的 shim 二进制版本（用于在启用 UEFI 安全启动的系统上引导 Linux）从未被加入吊销列表。</p>
+                    <blockquote>
+                        <p>拥有管理员权限或能够修改启动过程的攻击者，可以利用其中一个存在漏洞的 shim 引导加载器绕过 Secure Boot 保护，在操作系统加载之前执行任意代码。在这一早期启动阶段执行的代码可能实现对平台的持久性攻陷，包括加载未签名或恶意的内核组件——这些组件能在系统重启后存活，某些情况下甚至能挺过操作系统重装。</p>
+                    </blockquote>
+                    <p>公告中附有存在漏洞的 shim 列表。</p>
+
+                    <h3>seunshare 3.10 中的本地 DoS 攻击向量（SUSE 安全团队博客）</h3>
+                    <p>SUSE 安全团队博客发文分析了 <code>seunshare</code>——SELinux 用来约束不受信任程序的工具。在审查该程序 3.10 版时，团队发现了两个本地拒绝服务（DoS）向量。</p>
+                    <blockquote>
+                        <p>由于 <code>seunshare</code> 本应运行在启用 SELinux 的系统上，理解在这样一个 setuid-root 二进制中利用漏洞能达成何种提权非常重要。Fedora、openSUSE 等许多启用 SELinux 的系统默认使用"targeted"策略。该策略专注于约束知名系统服务，但为在安全与可用性之间取得平衡，默认给交互用户分配不受约束（unconfined）的 SELinux 上下文。</p>
+                        <p>目前 SELinux 策略中没有为 <code>seunshare</code> 定义从 unconfined 域到更受限的 <code>seunshare_t</code> 的域转换，这意味着 <code>seunshare</code> 的执行仍停留在 unconfined 域。因此，就交互用户发起的攻击而言，即使系统运行在 SELinux 强制模式下，下述漏洞的影响也相当于类 root 的提权。</p>
+                    </blockquote>
+                    <p>团队发现的完整过程与时间线见博文。漏洞已在 3.11 版中修复。</p>
+
+                    <h3>本周安全引述</h3>
+                    <blockquote>
+                        <p>至于 AI 本身，权力和财富向这些科技公司集中，是当今社会面临的最大生存风险。这意味着我们必须限制公司权力，尤其是公司剥削公众、操纵政治体系的能力。</p>
+                        <p>反对数据中心应该只是一个起点。我们可以倡导各州监管 AI、拒绝对这项技术不负责任的使用、塑造企业行为。我们可以争取对 AI 计算征税，让公众分享 AI 使用的部分利润，同时迫使 AI 公司更多地内化其使用所伴随的能源和环境后果。我们所有人还可以加入全球性的"公共 AI"（Public AI）运动——一个在公共控制下开发的替代性 AI 生态，其激励结构旨在创造公共利益而非私人利润。</p>
+                        <p>—— Bruce Schneier 与 Nathan E. Sanders</p>
+                    </blockquote>
+
+                    <h3>内核开发</h3>
+                    <h3>内核发布状态</h3>
+                    <p>当前开发内核是 <strong>7.2-rc3</strong>，于 7 月 12 日发布。Linus 说："情况看起来依然正常（'新常态'——提交速率略高，不过我感觉这被人们开始休暑假略微抵消了）。"本次发布已包含来自 2,261 位开发者的 14,229 个非合并变更集，其中 448 位是首次内核贡献者。</p>
+                    <table>
+                        <thead>
+                            <tr><th>RC 版本</th><th>日期</th><th>提交数</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>v7.2-rc1</td><td>2026-06-28</td><td>14,395</td></tr>
+                            <tr><td>v7.2-rc2</td><td>2026-07-05</td><td>433</td></tr>
+                            <tr><td>v7.2-rc3</td><td>2026-07-12</td><td>475</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>稳定版更新</strong>：过去一周没有发布稳定版更新。</p>
+
+                    <h3>2026 年维护者峰会议题征集</h3>
+                    <p>维护者峰会（Maintainers Summit）是内核开发者和维护者一年一度、仅限受邀的聚会，讨论开发流程问题。2026 年峰会（10 月 8 日，布拉格）的议题征集已发出。获得峰会邀请的最佳途径之一就是提出好的议题。想获得最佳考虑，议题应在 7 月 24 日之前提交。</p>
+
+                    <h3>本周引述</h3>
+                    <blockquote>
+                        <p>再次感谢你在 NOMMU 上的帮助。我想给你颁一枚奖章，不过你只能将就着接受一个塞爆的收件箱了。</p>
+                        <p>—— Andrew Morton</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>我知道有些人真的很讨厌 AI，但在这个问题上，作为最高层维护者，我愿意坚决地把脚跺下去。</p>
+                        <p>Linux 不是那种反 AI 的项目。如果有人对此有意见，他们可以做开源该做的事：fork 它。或者干脆走人。</p>
+                        <p>AI 是一种工具，就像我们使用的其他工具一样。而且它显然是有用的工具。</p>
+                        <p>—— Linus Torvalds</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>Linus 之所以在他的胡话上变本加厉，基本上是因为他不用亲自处理那些 AI 垃圾 :)</p>
+                        <p>我同意他说的：明智而有品位地使用时 AI 是有用的。这部分没问题，说内核不反 AI 也没问题。</p>
+                        <p>但"只是个工具"？拜托，老兄。</p>
+                        <p>它正在给评审者和维护者带来浩劫，因为现在混蛋们可以发送海量垃圾，而维护者的规模应付不了这些。</p>
+                        <p>我猜它是工具，就像核弹也"只是个工具"一样……</p>
+                        <p>—— Lorenzo Stoakes</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>难道除了强迫所有人吞下生成式 AI 这颗药丸之外，真的没有可接受的选项了吗？对有伦理顾虑的人来说，就没有一条仍被视为内核社区一员的路了吗？只有彻底投降、宣誓效忠一条路？这就是我越来越强烈感受到的对待方式，而且我知道我不是一个人。</p>
+                        <p>—— Laurent Pinchart</p>
+                    </blockquote>
+
+                    <h3>发行版</h3>
+                    <h3>Debian bookworm 最后一次常规更新</h3>
+                    <p>Debian 宣布了 Debian 12（"bookworm"）的最后一次常规更新。长期支持（LTS）更新将持续到 2028 年。正如稳定版本所预期的那样，此次更新以安全修复为主。不过，Debian 用户也许该考虑升级到更新的版本了。恰好，Debian 13（"trixie"）也在同一周末收到了更新，包含许多相同的安全修复。</p>
+
+                    <h3>本周发行版引述</h3>
+                    <blockquote>
+                        <p>如果你想看到 copyleft 软件成功，最好的办法是贡献代码让它变得更好。而不是仅仅因为许可证，就试图强迫或阻拦用户使用并不最适合他们的软件——那条路只会通向我们信誉的死亡。</p>
+                        <p>—— Ted Ts'o</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>Copyleft 不是什么能保护我们免受公司侵害的魔咒。它只是一个工具，在某些情况下有用，在另一些情况下没用。</p>
+                        <p>也许我错了，copyleft 比我想的更重要。若果真如此，你们就得想办法招募更多人来开发 copyleft 软件，而且很可能需要在更广泛的社会层面打政治仗，以削减其他模式目前享有的巨大的先天法律优势。</p>
+                        <p>你知道什么对这场斗争毫无帮助吗？"来用我们的 copyleft 软件吧；它质量差，我们也很少写代码，但我们有很多爱说教的卫道士，会一直数落你该用什么软件，直到你寿终正寝。"</p>
+                        <p>—— Russ Allbery</p>
+                    </blockquote>
+
+                    <h3>开发</h3>
+                    <h3>Rust 1.97.0 发布</h3>
+                    <p>Rust 编程语言 1.97.0 版已发布。改动包括：默认使用新的符号重整（symbol-mangling）方案、支持在 Cargo 中将警告视为错误（deny warnings），以及不再在构建成功后隐藏链接器的输出。</p>
+
+                    <h3>Linux.org 的故事</h3>
+                    <p>Rob Kennedy 发文讲述了 Linux.org——最早的 Linux 相关网站之一——的诞生及其近年的重生：</p>
+                    <blockquote>
+                        <p>该站点由 Michael McLagan 创立于 1994 年 5 月，当时 Linux 本身才刚满三岁。Linus Torvalds 刚刚把它发布给世界，新人没有真正的入门途径：没有搜索引擎，没有维基百科，没有如今人们习以为常的那些用来搞懂一项新技术的基础设施。Michael 建立 linux.org 来填补这个空白——一个让人们学习 Linux、跟随这场运动成长的地方。</p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for July 16, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1081918/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：DistroWatch Weekly（7 月 13 日）、This week in F-Droid（7 月 9 日）、openSUSE Tumbleweed Review of the Week（7 月 10 日）、Ubuntu Weekly News（7 月 6 日）、Ubuntu Weekly Newsletter（7 月 13 日）。</p>
+                    <p><strong>开发</strong>：Emacs News（7 月 13 日）、What's cooking in git.git（7 月 9 日、12 日、14 日三期）、This Week in GNOME（7 月 10 日）、GNU Tools Weekly News（7 月 12 日）、Golang Weekly（7 月 10 日）、Last Week in Kubernetes Development（7 月 11 日）、LLVM Weekly（7 月 13 日）、This Week in Matrix（7 月 10 日）、OCaml Weekly News（7 月 14 日）、OpenPrinting News（7 月 8 日）、Perl Weekly（7 月 13 日）、This Week in Plasma（7 月 11 日）、PyCoder's Weekly（7 月 14 日）、Python Core Dispatch（7 月 6 日）、Ruby Weekly News（7 月 9 日）、This Week in Rust（7 月 8 日）、Wikimedia Tech News（7 月 13 日）。</p>
+                    <p><strong>会议记录</strong>：Fedora FESCo meeting minutes（7 月 14 日）、openSUSE Release Engineering minutes（7 月 8 日）、This week in the Perl Steering Committee（7 月 13 日）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>7 月 20 日</td><td>11 月 14–15 日</td><td>Capitole du Libre 2026</td><td>图卢兹，法国</td></tr>
+                            <tr><td>7 月 31 日</td><td>10 月 14–17 日</td><td>PyCon South Africa</td><td>开普敦，南非</td></tr>
+                            <tr><td>7 月 31 日</td><td>10 月 1–2 日</td><td>embedded Linux for Safe and Secure Applications</td><td>哥廷根，德国</td></tr>
+                            <tr><td>7 月 31 日</td><td>9 月 25–27 日</td><td>PostmarketOS and Alpine Linux Conference</td><td>亚琛，德国</td></tr>
+                            <tr><td>8 月 1 日</td><td>9 月 28 日–10 月 1 日</td><td>Alpine Linux Persistence and Storage Summit</td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>8 月 1 日</td><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 2–4 日</td><td>GNU Tools Cauldron</td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 3–4 日</td><td>Linux Days 2026</td><td>布拉格，捷克</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>7 月 13–16 日</td><td>Netdev</td><td>罗马，意大利</td></tr>
+                            <tr><td>7 月 13–19 日</td><td>DebCamp 26</td><td>Santa Fe，阿根廷</td></tr>
+                            <tr><td>7 月 13–19 日</td><td>EuroPython</td><td>克拉科夫，波兰</td></tr>
+                            <tr><td>7 月 15–22 日</td><td>BornHack 2026</td><td>菲英岛，丹麦</td></tr>
+                            <tr><td>7 月 16–19 日</td><td>Electromagnetic Field</td><td>Eastnor，英国</td></tr>
+                            <tr><td>7 月 18 日</td><td>AlmaLinux Day: Los Angeles</td><td>洛杉矶，美国</td></tr>
+                            <tr><td>7 月 20–25 日</td><td>DebConf 26</td><td>Santa Fe，阿根廷</td></tr>
+                            <tr><td>8 月 6–9 日</td><td>FOSSY 2026</td><td>温哥华，加拿大</td></tr>
+                            <tr><td>8 月 8–9 日</td><td>UbuCon Asia 2026 @ COSCUP</td><td>台北，中国台湾</td></tr>
+                            <tr><td>8 月 11–12 日</td><td>Open Source Summit Korea</td><td>首尔，韩国</td></tr>
+                            <tr><td>8 月 14–16 日</td><td>Hackers on Planet Earth</td><td>纽约，美国</td></tr>
+                            <tr><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 30 日–9 月 5 日</td><td>FOSS4G Hiroshima 2026</td><td>广岛，日本</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>本期涵盖了 7 月 9 日至 7 月 15 日期间各发行版发布的大量安全公告，涉及 AlmaLinux、Debian（含 stable 与 LTS）、Fedora、Mageia、Oracle、Red Hat、Slackware、SUSE 以及 Ubuntu（覆盖 14.04 至 26.04 多个版本）。受影响软件包包括：kernel（多个版本系列）、chromium、openssl、openssh、nginx、podman/buildah、cups、grub2、imagemagick、mesa、redis、vim、php、python-pillow、libxml2、krb5、python-Django、xorg-server、tigervnc、apache2、curl、dnsmasq、libheif、wget 等。完整条目见 LWN 安全公告摘要。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（7 月 8 日–7 月 15 日）内核相关补丁精选包括：</p>
+                    <ul>
+                        <li><strong>内核发布</strong>：Linux 7.2-rc3（Linus Torvalds，7 月 12 日）、v7.2-rc2-rt1（Sebastian Andrzej Siewior，7 月 9 日）、6.6.144-rt76（Clark Williams，7 月 14 日）、5.15.211-rt97（Joseph Salisbury，7 月 9 日）。</li>
+                        <li><strong>架构相关</strong>：Armv9.5 FEAT_HDBSS、arm64 FEAT_NMI、LoongArch KVM、RISC-V KVM/BPF、s390/mm、x86/hygon、AMD IOMMU GAPPI 等多项。</li>
+                        <li><strong>核心内核</strong>：sched_ext CPU 委托、workqueue 默认 unbound、io_uring 设备内存支持、BPF arena 指针、实时工作队列等。</li>
+                        <li><strong>开发工具</strong>：RV monitor、KASAN for BPF JIT、kallsyms 源码行号嵌入、mm/kwatch 硬件观察点、允许 LLVM 全套工具版本化等。</li>
+                        <li><strong>设备驱动</strong>：网络（r8169、WWAN、Intel IGB 等）、GPU（nouveau、panthor、vc4）、时钟、PCIe、USB、I2C、IIO ADC 等大量新驱动与支持（超 150 项，列表最长）。</li>
+                        <li><strong>驱动基础设施</strong>：DRM 原子重置标志、dma-mapping 保留、RDMA 命名空间唯一化、Rust 串口/LED 抽象等。</li>
+                        <li><strong>文档</strong>：LSM 堆叠用法更新、中文版 "What's cooking" 等。</li>
+                        <li><strong>文件系统与块层</strong>：ext4 EA inode 延迟 iput、XFS fs-verity、md/raid5 优化、fscrypt 标准化、overlayfs O_ALT 打开方式等。</li>
+                        <li><strong>内存管理</strong>：vmalloc 加速、大 folio 迁移批处理、交换层分级、MGLRU 主动老化等。</li>
+                        <li><strong>网络</strong>：IPv4 over IPv6 流表加速、TLS 1.3 硬件卸载、BPF icmp_send、MCTP-over-USB 等。</li>
+                        <li><strong>安全相关</strong>：PTRACE_SET_SYSCALL_INFO 跳过 seccomp、Landlock NNP、cBPF JIT 加固、加密休眠快照等。</li>
+                        <li><strong>虚拟化与容器</strong>：KVM arm64 SME/pKVM/NV2p1、SEV RMP 修复、nSVM DecodeAssists 等。</li>
+                        <li><strong>杂项</strong>：perf c2c 函数视图、tuna cgroup v2 cpuset 支持。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1081915/" target="_blank">LWN.net Weekly Edition for July 16, 2026</a></p>
+            <p>更新时间：2026年7月23日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
