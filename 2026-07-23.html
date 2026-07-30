@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年7月23日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年7月23日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">关于大语言模型在内核社区中角色的争论</a></li>
+                    <li><a href="#article2">GNOME 可能迎来"保存与恢复"功能</a></li>
+                    <li><a href="#article3">Fedora 在变革中挣扎</a></li>
+                    <li><a href="#article4">将 BPF 程序附加到多个 tracepoint（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article5">保护 BPF LSM 免遭篡改（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article6">famfs 何时合并？（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article7">sched_ext：子调度器的 enqueue() 与代理执行支持</a></li>
+                    <li><a href="#briefs">📝 简讯</a></li>
+                    <li><a href="#announcements">📢 公告</a></li>
+                </ul>
+            </div>
+
+            <!-- 文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">社区 / 开发流程</span>
+                    <h2>关于大语言模型在内核社区中角色的争论</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月21日</span>
+                        <span><a href="https://lwn.net/Articles/1083275/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>内核社区一直在努力厘清大语言模型（LLM）在开发流程中的定位。近期 Linus Torvalds 一封措辞强硬的邮件占据了新闻头条，但社区实际的讨论远比许多报道所呈现的更细致，涉及 LLM 署名标签、代码审查工具、对专有工具的依赖与可持续性，以及 LLM 使用的伦理争议等多个层面。</p>
+
+                    <h3>背景：Assisted-by 标签</h3>
+                    <p>自 2025 年底（7.0 发布周期）起，经 Linux Foundation 技术顾问委员会（TAB）及邮件列表长期讨论，内核文档 <code>coding-assistants.rst</code> 中加入了指引：若补丁部分或全部由 LLM 生成，须携带 <code>Assisted-by</code> 标签，格式为：</p>
+                    <pre><code>Assisted-by: AGENT_NAME:MODEL_VERSION [TOOL1] [TOOL2]</code></pre>
+                    <p>其目的是记录 LLM 的使用、提醒维护者重点审查，并在特定模型将来出现缺陷或版权问题时提供追溯依据。截至 7.2-rc4，已有超过 1200 个提交带有此标签。但大量机器生成的补丁并未标注——部分因为不了解规则，部分疑似故意隐瞒——这使标签的实际效用受到质疑；还有开发者认为在开发历史中写入具体 LLM 名称形同广告。</p>
+
+                    <h3>重新考虑 Assisted-by</h3>
+                    <p>Christian Brauner 于 7 月初提议彻底取消披露要求，或至少简化为 <code>Assisted-by: LLM</code>，理由是"除核心贡献者外多数人根本不披露，这一要求既无意义又带来未定义的法律风险"。随后 Jeff Layton 提交补丁完全移除署名要求；网络子系统维护者 Jakub Kicinski 则表示自己会直接删掉所应用补丁中的此类标签——实质上单方面推翻了 TAB 的决定。</p>
+                    <p>反对移除的一方：Greg Kroah-Hartman 认为该标签是"LLM 参与"的信号，提示需要更严格的审查；Lorenzo Stoakes 称现行政策"旨在赋能维护者驳回可疑补丁"。目前的共识倾向是保留标签但不再强制披露具体工具名（即采纳 Brauner 的简化版建议），最终决议可能要等到 10 月的维护者峰会（Maintainers Summit）。</p>
+
+                    <h3>依赖与可持续性</h3>
+                    <p>在内核社区，LLM 更多被用于补丁审查而非生成，其中 Sashiko 审查工具已被多个子系统广泛采用。它背后依赖企业资助，这引发了隐忧：</p>
+                    <ul>
+                        <li>Sashiko 主要开发者 Roman Gushchin 在维护者峰会提案中警示"依赖单一公司的基础设施而没有正式保障"的风险，并类比了早年 BitKeeper 被突然撤回使用权的事件。</li>
+                        <li>Dave Chinner 直言："我已经学会驾驭 LLM 到无需亲手写代码的程度，它就像一个极其智能的 DWIM 预测编辑器，对厌倦敲代码的人来说堪称启示。"</li>
+                        <li>Sasha Levin 表示若 AI 明天消失，他可以退回手写脚本的方式，但也承认过去两年他借助 AI 重写了大多数丑陋脚本并将流程自动化。</li>
+                        <li>Ted Ts'o 指出 Sashiko 能发现人类漏检的问题，但"如果审查者因此停止工作，那世界就完了"；同时它确实减轻了自己的工作量。</li>
+                    </ul>
+                    <div class="info-box warning">
+                        <p><strong>核心担忧</strong>：长期依赖可能导致人工审查技能萎缩；一旦资助收紧、工具消失，社区将遭受重创。部分开发者（Mauro Carvalho Chehab、Takashi Iwai）正在探索本地运行开放权重（open-weight）模型，但目前误报多、覆盖面小。</p>
+                    </div>
+
+                    <h3>来自 Sashiko 的邮件：强制交互争议</h3>
+                    <p>2026 媒体峰会讨论了媒体子系统补丁的 Sashiko 使用问题。Chehab 设立了独立邮件列表接收机器审查邮件，并提到有贡献者希望能选择退出（opt-out）机器审查。Gushchin 把 opt-out 比作拒绝单元测试；Laurent Pinchart 反驳说把人加入新列表必须获得明示同意，而且维护者应当先做分诊（triage）再去打扰补丁作者。Ts'o 拒绝为 Sashiko 的审查结果把关，并表示可以直接拒收不理会审查意见者的补丁；James Bottomley 称"贡献者无权批准维护者所使用的工具"。Pinchart 则指出，强迫作者回应机器生成的无意义评论，等同于强迫他们阅读未经审查的 LLM 生成补丁，而新手尤其容易被幻觉（hallucination）误导。Linus Torvalds 介入称：期望作者顺手修复无关的旧 bug 向来是个痛点，并提议或许可以让 LLM 自己维护一棵修复树——这一提议应者寥寥。</p>
+
+                    <h3>分叉与伦理</h3>
+                    <p>Torvalds 回应 opt-out 请求时表示："Linux 不是反 AI 项目。有异议的人可以做开源该做的事：fork 它，或者干脆走人。AI 只是工具。"</p>
+                    <p>Lyude Paul 反驳道：多数开发者要靠薪水生活，没有 fork 的现实条件；雇主强推 LLM、追求"10 倍生产力"的神话正在牺牲代码质量，内核指南或许是弱势开发者唯一的挡箭牌。Pinchart 更明确表态："今天不存在将生成式 AI 用于自由软件的伦理正当性。"Torvalds 则直接关闭了伦理讨论："把伦理留给你的个人生活，别强加于人。"文章列举了开发者的多种伦理疑虑——版权漠视、算力能耗、寡头控制等——但 Torvalds 将讨论限定在纯粹的技术有用性上。</p>
+
+                    <h3>结语</h3>
+                    <p>内核社区对 LLM 角色的疑问仍然开放且众多：支持者众、用途渐增，但标签政策悬而未决、依赖风险有待化解、伦理裂痕难以弥合。社区历来是在磕碰中成长的，但愿这一次也能找到出路。</p>
+                </div>
+            </div>
+
+            <!-- 文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">桌面 / GNOME</span>
+                    <h2>GNOME 可能迎来"保存与恢复"功能</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年7月22日</span>
+                        <span><a href="https://lwn.net/Articles/1083750/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在西班牙拉科鲁尼亚举行的 GUADEC 2026 大会上，Adrian Vovk 介绍了 GNOME 平台级"保存与恢复"（save and restore）框架的进展。该功能的初衷很简单：用户工作时打开了多个应用与文档，因注销或重启离开系统后，再次登录时应能恢复先前的会话——包括窗口位置、大小和已打开的文档。目前 GNOME 原生不支持此能力，只能借助 Restore Geometry、Another Window Session Manager 之类的扩展。</p>
+                    <p>Vovk 指出，这是用户从 X11 迁移到 Wayland 后最常怀念的特性之一，也常被视作 Wayland 相对 X11 的缺陷。它的实用价值包括：从应用或系统崩溃中恢复；鼓励用户更频繁地更新系统——不可变系统必须重启才能应用更新，而重启会丢失工作现场，他本人就曾为此拖延一两周不更新。底层框架还可为高级特性铺路，例如移动端式的应用休眠省电、类似 Apple Handoff 的跨设备状态迁移，但 Vovk 明确表示这些并非已承诺的项目。</p>
+
+                    <h3>从 XSMP 到 Wayland</h3>
+                    <p>X11 时代，应用通过 X Session Management Protocol（XSMP）向会话管理器注册，自行保存状态并通过命令行在下次登录时被拉起。但 GNOME 中的 X11 会话保存早已损坏，到 GNOME 50（2025 年 6 月移除 X11 会话支持代码）时被彻底删除。XSMP 完全基于命令行，沙箱应用可能借机让系统在登录时执行任意命令，并不安全；而且 Wayland 下应用无法自行决定窗口位置（由合成器管制），因此需要全新方案。</p>
+                    <p>替代 XSMP 的是 XDG desktop portal：应用仍向 GNOME 会话管理器注册，但由 desktop entry 而非命令行重启，并会收到"restore reason"（正常启动 / 全量恢复 / 崩溃恢复）。窗口状态由 <code>xdg_session_management_v1</code> 协议处理：应用向合成器（如 mutter）索取 token，由合成器集中保存与恢复。Vovk 认为这比 X11 更一致——合成器可以统一策略，例如正常启动时不恢复工作区，避免"应用在第三工作区打开却跳回第一工作区"的怪异体验。</p>
+
+                    <h3>GTK：三次 API 尝试</h3>
+                    <p>Vovk 强调最困难的部分是 GTK：过去缺乏高层 API 导致适配的应用寥寥。目标是由 <code>Gtk.Application()</code> 统一管理 portal 与 Wayland 协议，核心概念为"状态快照"（state snapshots）。GTK 默认每 15 秒自动快照，防止崩溃丢数据；还要处理各种边缘情况，例如从 Nautilus 双击文件拉起一个已保存状态的应用时，GTK 会先把应用恢复到"仿佛已使用许久"的状态，再派发激活请求。</p>
+                    <ul>
+                        <li><strong>第一次 API</strong>（几乎进入 GNOME 50 / GTK 4.22）：简单的同步信号，所有 handler 返回即视为完成。缺陷是重复代码多、无视窗口层级、不支持批量数据（如几 MB 未保存的文本）、且完全同步无法异步存盘，最终在 GTK 4.22 发布前被移除。</li>
+                        <li><strong>第二次 API</strong>（目标 GNOME 51）：支持异步、窗口层级和批量数据，但使用异步 GObject signals 的设计被维护者"压倒性拒绝"。</li>
+                        <li><strong>第三次 API</strong>（当前方案）：放弃异步信号，改用异步方法 / vfuncs，纯接口、无怪异机制。Vovk 相信这次能成，但不会赶上 GNOME 51（2026 年 10 月）。</li>
+                    </ul>
+                    <div class="info-box note">
+                        <p><strong>当前进度</strong>：Wayland 协议已发布；mutter 端进入 GNOME 51 beta（尚有 bug）；GTK 的 Wayland 部分进入 51 alpha（应用暂不可用）；XDG session save/restore portal 尚未完成（KDE 和 Firefox 认可概念，细节在 xdg-desktop-portal PR #1818 中讨论）；GNOME Session Manager 的 MR #162 正等待依赖。第三版 API 在分支中等待反馈，需先有应用移植再行稳定。</p>
+                    </div>
+                    <p>问答环节确认：GNOME 设置中将提供关闭该功能的选项，且应用需主动 opt-in；该功能无法在低于 GTK 的层次实现，因为必须由 <code>GtkApplication()</code> 同时处理 Wayland 协议与 XDG portal；现有扩展长期看或不再必要，但过渡期仍可使用。</p>
+                </div>
+            </div>
+
+            <!-- 文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">发行版 / Fedora</span>
+                    <h2>Fedora 在变革中挣扎</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年7月20日</span>
+                        <span><a href="https://lwn.net/Articles/1081557/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Fedora 项目正经历一场"中年危机"式的流程反思——同时重新审视多项既有的变更（change）与社区倡议（community initiatives）流程，以判断它们是否仍切实有效。作为 Red Hat 赞助的项目，Fedora 始终在用户、贡献者社区与企业母公司之间走钢丝。</p>
+
+                    <h3>治理的演变</h3>
+                    <p>Fedora 以高度规范的流程著称：详细的打包指南、法律合规框架，以及区分自包含技术变更与系统级变更的 change process。Red Hat 希望在 Fedora 试验新技术，但常引发贡献者与用户不满；志愿者推动的设想（如 Fedora 33 采用 Btrfs 作为默认文件系统）又可能与 Red Hat 在 RHEL 上不支持 Btrfs 的决定相冲突。治理上，Fedora 2003 年启动时并无明确政策，曾拟建"Fedora Foundation"却于 2006 年撤回，后来演变为 Fedora Council 与 FESCo（Fedora 工程指导委员会）。前 FPL Max Spevack 曾指出：Red Hat 因商业模式与法律风险必须保有最终决定权，但不愿滥用，并期望社区驱动的决策成为项目成功的标准。</p>
+
+                    <h3>Fedora Sandbox 提案</h3>
+                    <p>近一年来，既有流程频繁因 Red Hat 的优先级而受到质疑。2026 年 3 月，现任 FPL Jef Spaleta 提出"Fedora Sandbox"技术生命周期流程，用于承载实验性特性、组件或服务。其动因是 Red Hat 领导层对严格的打包、许可合规与社区共识要求感到挫败——这些流程可能拖慢原本要进入 RHEL 的实验。Sandbox 允许实验打破"非法律约束"的政策，只要有明确的解决路径。该提案迄今既未被接受也未被拒绝。</p>
+
+                    <h3>倡议摩擦：AI 桌面与 Hummingbird</h3>
+                    <ul>
+                        <li><strong>AI developer desktop</strong>：3 月 31 日 Red Hat 开发者 Gordon Messmer 提议在 Fedora 内建 AI 社区，遭到社区反对（反感 AI、担忧内核模块策略变更）。Fedora Council 初步批准后又生变数：5 月 8 日 Justin Wheeler 改票阻断，5 月 13 日 Miro Hrončok 亦改票，称"社区不支持此倡议"。</li>
+                        <li><strong>Project Hummingbird</strong>：4 月 Red Hat 的 McCarty 在邮件列表提及自动构建操作系统的设想，本打算通过 Sandbox 正式提案，但 Red Hat 私下请 Council 批准使用 Fedora 商标，并在 5 月 12 日 Red Hat Summit 上直接宣布，令外部贡献者（如 Michael Gruber）感到困惑与不信任。</li>
+                    </ul>
+                    <p>Red Hat 员工 Adam Williamson 认为流程本应更公开，但欣慰项目留在 Fedora 之内；他警告 Red Hat 天然倾向于完全掌控的渠道，而 Fedora 必须保持松散耦合的上游模式才能产出更好的结果。社区成员 Christopher Klooz 则担忧资金逻辑正使 Fedora 逐步变成"Red Hat 的企业单元"，Council 的身份定位日益模糊。Williamson 回应说这是一种"永恒的张力"，需要持续向公司内部推销开放上游的愿景。</p>
+
+                    <h3>暂停社区倡议与变更流程改革</h3>
+                    <p>7 月 1 日，变更协调人（change wrangler）Aoife Moloney 代表 Council 提议暂停社区倡议流程（已有倡议继续进行）。AI 桌面事件表明该框架已经失败（尽管未明确定义何种失败）。Council 承认需要更开放、更多纳入社区声音，并将细化研究 Sandbox 作为替代或补充。</p>
+                    <p>6 月，FESCo 成员 Maxwell G 发起关于 change process 改进的讨论：弃用 Wiki 与 Wikitext，改为 Markdown 文本存入 Git 并通过 MR 提交；终结 Discourse 与 devel 邮件列表之间的跨平台讨论分裂。Michal Schorm、Björn Persson（细数了 Pagure、Bugzilla、GitLab 等十处信息孤岛）表示赞同；Kevin Fenzi 主张保留 Discourse 以吸纳新声音；Ben Cotton 提倡先做顶层设计；Martin Kolman 提议自建 Web 应用，被 Daniel P. Berrangé 以维护成本为由否决。Moloney 呼吁不要轻率改动，先等 Fedora Forge（以 Forgejo 为基础替换 Pagure）落定。Red Hat 经理 Brendan Conoboy 指出现有流程对非常规变更非常艰难，并举 2FA 与 AI 桌面为例。7 月 7 日 Maxwell G 总结：Git 与 Wiki 各有支持者，但跨论坛分裂确实已成负担，将优先解决这一痛点。</p>
+                    <div class="info-box note">
+                        <p><strong>展望</strong>：暑期讨论放缓，待社区回归后，Fedora 的流程恐将迎来一轮震动。这场博弈的深层，是 Fedora 在 Red Hat 控制与社区自治之间的重新校准。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">内核 / BPF</span>
+                    <h2>将 BPF 程序附加到多个 tracepoint</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年7月22日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1082948/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>内核中的 tracepoint 可用于调试、主动监控和性能测量等多种用途。此前，任何一个 BPF 程序只能附加到单一 tracepoint。Jiri Olsa 一直在改变这一点，并在 2026 年 LSFMM+BPF 峰会上介绍了进展。这项工作现已合并，将成为 7.2 内核的一部分。</p>
+                    <p>内核中其他类似设施支持多重附加——尤其是 kprobe，它能做到 tracepoint 的大多数功能。区别在于性能：tracepoint 设置较慢，但执行速度明显更快。Olsa 的幻灯片给出了每秒百万次执行量级的测量数据：视附加方式不同，tracepoint 可比 kprobe 快约一倍。如果 tracepoint 能在不产生性能回归的前提下支持多重附加，它将成为监控性能敏感操作的诱人选择。</p>
+
+                    <h3>实现历程</h3>
+                    <p>tracepoint 使用运行时代码修补，把被追踪函数的执行重定向到生成的蹦床（trampoline），执行附加的钩子后再返回原函数。最初 tracepoint 基于旧的 ftrace API 实现，蹦床、函数与 ftrace 对象一一对应，显然不利于多重附加。Menglong Dong 曾尝试用单一全局蹦床服务所有 tracepoint，但蹦床需要识别是哪个函数被调用，判定开销过高，造成性能回归。</p>
+                    <p>新方案改用较新的 ftrace API——单个 ftrace 对象即可配置多个函数。每个函数仍有自己的蹦床，但蹦床可以按组管理；蹦床生成很快，一次重新生成多个蹦床不会带来大的性能损失。</p>
+                    <p>开发中的一个复杂问题是锁处理。原本每个蹦床都有自己的锁，需要同时修改大量蹦床时，代码可能一次持有大量锁，撞上 lockdep 的 48 锁上限。解决办法是 Andrii Nakryiko 移除了蹦床上的锁，改为按蹦床地址共享的 32 锁池；由于锁的持有时间极短，实践中并发度几乎不受影响。</p>
+                    <p>另一个问题——由 Sashiko 补丁审查系统发现——是 tracepoint 与内核热补丁（live kernel patch）的交互。后者同样使用 ftrace API；当被热补丁替换的函数上附有 tracepoint 时，ftrace 会通知 tracepoint 代码重新生成蹦床，这需要获取蹦床的锁，但线程可能已持有会在其他路径上后于蹦床锁获取的锁，导致锁反转（死锁）。补救方式是在循环中尝试拿锁、间歇休眠以临时释放持有的互斥量。真正的 bug 在于移除热补丁时：此时锁的状态不允许循环等待，若蹦床锁被占用，蹦床可能不会改回指向原函数位置。Steven Rostedt 建议此情形直接返回 <code>EAGAIN</code>，让热补丁移除代码释放锁后重试；另一位开发者认为可以忽略——这只是性能问题而非正确性问题，代价不过是多一次间接跳转。</p>
+
+                    <h3>API 与限制</h3>
+                    <pre><code>struct bpf_link *
+bpf_program__attach_tracing_multi(
+    const struct bpf_program *prog,
+    const char *pattern,
+    const struct bpf_tracing_multi_opts *opts);
+
+struct bpf_tracing_multi_opts {
+    size_t sz;
+    __u32 *ids;
+    __u64 *cookies;
+    size_t cnt;
+    size_t :0;
+};</code></pre>
+                    <p>API 接受程序指针、指定附加目标的模式串，以及一组可选的 cookie（让 BPF 程序知道自己是从哪个 tracepoint 被调用的）。支持追踪函数入口、出口或两者，但不支持修改函数返回值或附加到 LSM 钩子。Nakryiko 询问这是设计限制还是可以后续补充；Olsa 确认其他类型可以支持，只是想先聚焦最简单的场景。</p>
+                    <div class="info-box warning">
+                        <p><strong>验证器限制</strong>：附加到单一 tracepoint 时，验证器可以检查 BPF 程序对该函数参数的访问，允许安全地解引用传入的内核对象指针。而附加到多个 tracepoint 时，被追踪函数的签名可能各不相同，验证器无法一次性完成检查。因此多重附加的 BPF 程序可以加载被追踪函数的参数，但不能解引用其中的指针。这一限制很难在不损害新 API 性能优势的前提下解除。</p>
+                    </div>
+                    <p>有听众问及一次附加多少函数、是否会因创建蹦床发送多个处理器间中断（IPI）而造成性能问题。Olsa 认为多数用户最多附加数百个 tracepoint（例如钩住所有系统调用实现），且 ftrace API 在 x86 上有避免多次 IPI 的技巧；Arm 上目前不行，但支持起来相对容易。Rostedt 解释：Arm 没有像 x86 <code>call</code> 那样"压栈当前指令指针并跳转"的单一指令，其等价指令 <code>bl</code>（branch-and-link）把前一个指令指针留在寄存器中，因此给函数打蹦床补丁需要修改多条指令，必须用 IPI 保证 CPU 不会看到无效的中间状态。若有人实现一种能以单次原子写入完成修补、且符合 Arm 可执行代码修补规则的蹦床，x86 的免 IPI 技巧同样适用。被问到是否有计划时，Rostedt 答曰："如果有人做了，我不会 NAK。"截至发稿，尚无人贡献这样的 Arm 蹦床；Olsa 的补丁集已于 6 月 7 日合并。</p>
+                </div>
+            </div>
+
+            <!-- 文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">内核 / 安全</span>
+                    <h2>保护 BPF LSM 免遭篡改</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年7月17日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1082111/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>自 2020 年起，BPF 程序就可以充当 Linux 安全模块（LSM）。包括 systemd 在内的多个项目正利用这一能力为用户提供更多安全保障。Christian Brauner 在 2026 年 LSFMM+BPF 峰会上讲述了这种用法的局限，以及他希望为 systemd 的使用场景做出的改变——尤其是希望有办法确保 BPF 程序不会被移除、其私有数据不会被篡改。</p>
+                    <p>BPF 程序附加到 LSM 钩子或其他内核资源时是引用计数的：如果提交该 BPF 程序的用户态进程关闭了对应文件描述符（例如崩溃了），BPF 程序会被自动清理。这一设计保持了整洁、防止泄漏，却给 BPF LSM 留下了脆弱点。此外，通过以出乎意料的方式修改 BPF map 中的数据，往往也能干扰 BPF 程序的执行——map 除了与用户态通信，也常存放 BPF 程序自身依赖其正确性的辅助数据。Brauner 希望改变这两种行为，让 BPF 安全程序一旦安装就无法被轻易绕过。</p>
+                    <p>他正在开发的代码确保计算机只执行拥有有效 dm-verity 签名的文件，类似内核的完整性度量架构（IMA）；安全收益是阻止一切依赖覆写可执行文件或从意外位置执行程序的攻击。与原生 IMA 相比，用 BPF 做检查可以更灵活地定制并与 systemd 现有配置集成。这部分代码已能工作，计划集成进 systemd。</p>
+
+                    <h3>难点：保护 BPF 组件自身</h3>
+                    <p>Brauner 坦言："也许是我太笨，但我找不到一种干净的办法让 BPF LSM 程序免受一切修改。"他最终采用了一个变通方案：用 BPF 钩住内核中所有可能修改已加载 BPF 程序的路径，并禁止任何不是来自 init 进程的修改。现有特性也帮不上忙：签名 BPF 程序只在加载时受保护，之后仍可像普通程序一样被卸载；作为同一工作引入的独占 map（exclusive maps）可以限制只有受信任程序访问 map，但每个 BPF 程序只能有一个独占 map，而他的程序需要保护大约七个 map。</p>
+                    <p>Andrii Nakryiko 请 Brauner 展开说明变通方案的不足。问题在于要往内核许多地方添加自定义钩子——BPF 维护者每加一个新特性，他就得知道并更新防护。例如 BPF 程序的骨架（skeleton）仍映射在 init 进程中，他必须阻止任何人修改它，这意味着要封锁 <code>ptrace()</code> 之类的功能；很难确信真的覆盖了所有可能的影响面。如果能直接把 BPF 程序标记为不可变（immutable），一切都会简单得多。</p>
+                    <p>Nakryiko 自己也做过自保护的 BPF 程序：加载后记录所有相关资源的文件描述符，再把程序附加到涉及这些描述符的所有 LSM BPF 钩子上。这个方案对他来说运作良好，他并不觉得需要更多东西。Brauner 反问：既然如此，为什么还要帮忙往内核里加独占 map？Alexei Starovoitov 解释说独占 map 的用处不止于安全，而且他认为该特性其实已支持每程序多个 map。</p>
+                    <p>一位听众对 Nakryiko 的方案并不满意，指出每个 BPF LSM 都要做类似的事，不如在内核中直接实现不可变 BPF 程序。Liam Wiseheart 则指出干扰已加载 BPF 程序的方法数不胜数——加载内核模块、写裸内存等——他怀疑 Brauner 想要的完全防护即使在内核内部也未必可能。Lennart Poettering 补充了一个复杂因素：systemd 支持重新执行（re-execution），init 进程可以重启并传递打开的文件描述符，这让基于保护文件描述符的方案更难实施。</p>
+                    <div class="info-box success">
+                        <p><strong>阶段性方向</strong>：Nakryiko 最终建议直接增加 BPF 程序的引用计数，使关闭文件描述符也不会使其归零，程序因此常驻——这虽不能阻止用户态干扰 map，但方向正确。Wiseheart 建议将 map 与用户态彻底脱钩，并禁止其 ID 作为 <code>bpf()</code> 系统调用的参数。Brauner 同意其用例在初始化后不需要从用户态访问 map，因此将 BPF 程序与用户态完全隔离是可接受的。</p>
+                    </div>
+                    <p>随后 Wiseheart 进一步质疑 Brauner 想用 BPF 实现的策略（只运行有有效 dm-verity 签名的二进制）本身是否可行：uprobe 可以修改用户态代码的控制流，配合返回导向编程（ROP）等技术可以执行几乎任意代码；脚本语言解释器运行程序的方式，BPF 也难以与普通文件访问区分开。Brauner 同意脚本是个问题，认为解释器需要学会执行与内核类似的检查。堵上这个大漏洞之后，若干相关的可执行程序策略应当就能落地。BPF 开发者最终会实现哪种方案（如果有的话）尚不明朗，但鉴于关注真正安全的 BPF LSM 的人如此之多，解决方案迟早会出现。</p>
+                </div>
+            </div>
+
+            <!-- 文章 6 -->
+            <div class="article" id="article6">
+                <div class="article-header">
+                    <span class="article-category">内核 / 文件系统</span>
+                    <h2>famfs 何时合并？</h2>
+                    <div class="article-meta">
+                        <span>作者：Jake Edge</span>
+                        <span>发布日期：2026年7月20日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1082687/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>famfs（fabric-attached memory filesystem）旨在为 CXL 等设备上的巨型内存驻留文件提供共享访问。它于 2024 年首次亮相 LSFMM+BPF 峰会，2025 年展示了新实现，但至今仍未进入内核主线。创建者和维护者 John Groves 供职于 Micron——该公司生产可供多台服务器访问的大内存池设备，产品即将上市。自去年峰会以来，他还当选了 CXL Consortium 软件与系统工作组的联合主席——"他们看走了眼才选我"，他笑着说。</p>
+                    <p>Groves 对 famfs 的开发历程给出了两种视角：它"自 2023 年以来一直在给 VFS 和 FUSE 添乱"，而文件系统社区在这段时间里则一直在"让完美成为良好的敌人"。他希望这场会议能帮大家"停止这样做"，让 famfs 得以进入内核。</p>
+
+                    <h3>famfs 是什么</h3>
+                    <p>Groves 强调"famfs 不能当通用文件系统使用"：应用不能随便打开一个 famfs 文件就开始写；它用于在非稀疏、可共享的内存中创建非稀疏文件。famfs 不是只读的，但通常相当静态——数据被移入其中，再供分析或其他处理访问。它为可共享的 DAX 内存提供文件系统接口：通过 <code>mmap()</code> 创建的区域访问，读写一般由 <code>memcpy()</code> 完成。</p>
+                    <p>元数据管理支持多主机挂载同一 famfs 文件系统：由单一主节点放入文件供客户端节点使用。"文件映射"（file maps）描述文件到多个 DAX 设备上偏移与范围的映射。跨设备交错（interleaving）对性能至关重要——系统内存就是这样布局的，共享内存设备也必须如此。该交错机制完全不特定于 CXL，可用于其他提供 DAX 接口的共享内存设备。Ted Ts'o 问是否只有主节点能创建或写入文件；Groves 答：可预见的将来只有主节点能创建文件（创建时全量预分配），写入通常也只由主节点进行，客户端可以写，"但你要自己负责这样做是否合理"。CXL"让缓存一致性变得更糟"，他的话引来满堂轻笑。</p>
+                    <p>内存没有 device mapper，只有页表、TLB 和缺页处理器；文件系统可以在这两个世界之间架桥。但 famfs 不是存储，只是易失性内存——没有后备存储。典型用法是：主节点先把数据收集到常规文件系统（如 XFS）的文件中，再复制到 famfs 文件；集群中的每个节点挂载 famfs 后对文件中的数据运行各自的工作负载。目前已有 100TB 的设备（尽管配套内存可能要到 2030 年才有货，又是一阵会心的笑声），但内核中没有可用的抽象。把巨型数据集放进内存的能力可以解决目前不切实际的问题；应用已经懂得用文件，有了 famfs 就无需为这些新设备重写。</p>
+
+                    <h3>FUSE ABI 之争与 BPF 弯路</h3>
+                    <p>famfs 有两个实现：最初的独立版本和较新的基于 FUSE 的版本（2024 年峰会讨论的产物，花了他近一年时间），通过挂载选项区分。困境在于：FUSE 版需要修改 FUSE ABI 才能处理其文件映射，而且性能不如独立版。他"扔了一年的 FUSE 补丁"却没有多少回应，最近还有人对所需的 ABI 改动提出异议。Christian Brauner 直接问："你想从我们这里得到什么？"答案实质上就是"合并 famfs"。</p>
+                    <p>讨论 ABI 改动时有人建议用 BPF 根据交错信息计算 extent。那需要把 BPF 程序作为缺页处理器运行——想法很巧妙，Groves 说，但 famfs 性能攸关，不适合当这个想法的试验田。他感觉一直在听到"你改了 X，FUSE 社区也许就接受"，显然已对不断变化的标准感到疲惫。Gregory Price 曾借 LLM 的"协助"拼出一个 BPF 概念验证，但 Groves 没能跑起来；Price 承认 LLM 的构建环境不标准，他的主要收获是"BPF 用于 FUSE 没有意义"。</p>
+                    <p>Amir Goldstein 归纳了 famfs 需要的两个 FUSE ABI 改动：一是确定存在哪些 DAX 设备，二是把文件映射提供给 FUSE 服务器以正确处理缺页。FUSE 维护者 Miklos Szeredi 表示他不反对按现状合并 famfs，只是更希望有一个替代 famfs 专用接口的通用方案。Christoph Hellwig 则反对把 BPF 扯进来：famfs 的问题其实与文件系统关系不大，而在于它在 FUSE 中使用了与其他文件系统不同的映射层——其他文件系统用的是 iomap。Darrick Wong 正在开发基于 iomap 的 FUSE ext4 实现，思路才是对的："我们希望用户态 FUSE 服务器把逻辑偏移映射到磁盘或 DAX 上的物理布局，包含条带化（striping）完全合理。"他强烈建议构建"正规的高层基础设施"，而不是把这类工作藏进文件系统专用代码。</p>
+                    <p>Wong 通过远程连线补充：famfs 基于模式（pattern）的 extent 若用 iomap 实现，会产生海量映射需要内核存储——100TB 文件按 2MB 条带就是巨量 extent 列表。"就因为不想要一点点可执行代码，就往内核里上传几十亿条映射，我觉得挺傻的。"这正是"疯狂的 BPF 主意"的由来，而它"很糟糕"。Hellwig 说条带模式的公式众所周知、由三个参数即可描述，不需要自定义可执行代码；Groves 表示同意——那些参数基本就是他在 FUSE 文件映射协议消息里用的。</p>
+                    <div class="info-box success">
+                        <p><strong>会议成果</strong>：Wong 提议接手 Groves 的文件映射补丁，改名为"FUSE map"之类的通用名称，随他的 FUSE iomap 工作一起推进上游。Goldstein 认为可行——只要其他人也能将文件映射设施用于自己的目的，就应该合入 FUSE。Groves 开玩笑地问这是否意味着要等到 2028 年，Brauner 提醒他刚刚有人主动请缨替他做大部分工作——又是一阵笑声。Goldstein 总结：Wong 的补丁看似让事情复杂化，实则有大量重叠和可复用代码。这次确实取得了进展，famfs 的合并路径有望就此确立。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文章 7 -->
+            <div class="article" id="article7">
+                <div class="article-header">
+                    <span class="article-category">内核 / 调度器</span>
+                    <h2>sched_ext：子调度器的 enqueue() 与代理执行支持</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月16日</span>
+                        <span><a href="https://lwn.net/Articles/1082717/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>可扩展调度器类（sched_ext）允许以一组 BPF 程序的形式安装自定义 CPU 调度器。尽管当前形态的 sched_ext 已经催生了大量有趣的调度器开发工作，该子系统本身仍在快速演进：子调度器（sub-scheduler）层级体系的能力即将补齐，与代理执行（proxy execution）长期互斥的问题也走向终结。</p>
+
+                    <h3>子调度器的 enqueue 路径</h3>
+                    <p>sched_ext 最初只允许在系统上安装单个自定义调度器，但多租户系统的用户很快就要求为不同进程组设置不同调度器。结果就是子调度器：将一个 sched_ext 调度器与某个控制组（control group）关联，组内所有进程都由该调度器管理。与控制组一样，sched_ext 调度器排成层级，高层调度器决定低层何时能把进程放上 CPU。</p>
+                    <p>初始的子调度器工作已合入 7.1 内核，但并不完整：子调度器只能处理派发（dispatch）路径——决定某 CPU 接下来运行哪个进程。派发是层级化的，父组调度器决定何时运行各子组调度器的派发处理器。但派发只是把进程从派发队列取出，没有解决进程最初如何入队的问题。</p>
+                    <p>Tejun Heo 的补丁系列处理的正是 enqueue 路径，而它自然有自己的复杂性。子调度器的 <code>enqueue()</code> 回调可能在任何时刻由调度器核心直接调用（当其管辖的任务变为可运行时），并且（在当前内核中）可以把任务放到任意 CPU 的派发队列上，还能抢占正在运行的任务——无论被抢占者是否受同一调度器管辖。控制组的本意是提供进程组之间的隔离，enqueue 路径必须保持这种隔离；同时调度是性能攸关的活动，应尽量避免每次入队都沿层级向上询问。</p>
+                    <p>答案是一套能力（capability）机制：调度器可以把自己的部分访问权分享给下级子调度器。子调度器刚接入层级时对系统中任何 CPU 都没有访问权；其父级可通过 <code>scx_bpf_sub_grant()</code> 授予它访问特定 CPU 集合的能力。能力分三级：把任务放到空闲 CPU 上、把任务放进 CPU 的派发队列等待执行、抢占其他调度器管辖的任务。根调度器拥有所有 CPU 的全部能力，可以向下传递全部或部分；调度器只能授予自己拥有的能力。</p>
+                    <p>如果子调度器试图把任务入队到自己缺乏所需能力的 CPU，任务会被转入一个特殊的拒绝队列，然后带着 <code>SCX_TASK_REENQ_CAP</code> 标志重新交回该子调度器的 <code>enqueue()</code> 回调，示意重试。父级撤销先前授予的能力时也类似：受影响 CPU 上已调度的任务会被移除，交回子调度器重新安置。</p>
+                    <div class="info-box note">
+                        <p><strong>遗留问题</strong>：Heo 在补丁说明中列出两点——进程在控制组之间移动不会改变管辖它的子调度器；用 <code>sched_setaffinity()</code> 可以把进程限制到其子调度器无权运行的 CPU 集合上，导致进程无处可跑。后者固然"增强了隔离"，但进程的属主恐怕不会领情。补丁已历经五版修订，目标是合入 7.3 内核。</p>
+                    </div>
+
+                    <h3>与代理执行和平共处</h3>
+                    <p>优先级反转发生在低优先级进程持有高优先级进程所需资源却无法运行时。常用的解法是优先级继承，但它不适用于死线调度（deadline scheduling）——死线任务不使用优先级，却仍会被其他进程持有的资源阻塞。此时的解法是代理执行：把等待进程的整个调度上下文借给持有资源的进程，让后者以前者的身份（并使用其资源）运行。启用代理执行后，阻塞在互斥量上的进程仍留在运行队列中；当调度器选中它上 CPU 时，会顺着链接找到持锁进程，用等待者的调度上下文运行持锁者。</p>
+                    <p>这套算法对内核内置调度器可行，但会让 sched_ext 陷入困惑：sched_ext 调度器自认为决定了谁运行，却发现跑的是另一个（可能完全不受它管的）进程。因此内核配置中两者被设为互斥，只能二选一——这让发行版左右为难。</p>
+                    <p>Andrea Righi 与 John Stultz 的补丁集给出了解法，做了两处根本改动。其一是对 sched_ext 调度器隐藏大部分代理执行过程：当调度器选中被阻塞的进程运行时，持锁者会被透明地替换执行，调度器永远看不到这次重定向，也就不会为发现"自己没调度的进程在运行"而惊讶；等待进程的调度上下文被使用，CPU 时间也记在等待进程头上。代理执行期间，等待者的调度上下文被移到持锁者运行的 CPU 上；锁释放后上下文移回，并调用调度器将（此时已可运行的）进程重新入队。</p>
+                    <p>不过调度器必须先向 sched_ext 核心表明愿意参与代理执行：注册时提供新的 <code>SCX_OPS_ENQ_BLOCKED</code> 标志。此后阻塞在互斥量上的进程会带着 <code>SCX_ENQ_BLOCKED</code> 标志传给调度器的 <code>enqueue()</code> 回调，调度器可自行决定是否特殊处理。补丁系列对示例调度器 <code>scx_qmap</code> 做了一处简单修改：立即调度被阻塞任务并抢占当前运行者。这一"有意不公平"的策略是为了让代理执行易于观察，也展示了基础设施就位后让 sched_ext 调度器支持代理执行所需的改动何其少。</p>
+                    <p>代理执行的实际效果取决于系统中的进程构成：若 sched_ext 只管辖部分进程，它将无法抢占运行在 sched_ext 之外、优先级更高的进程。补丁的变更日志中有一张表格，描述了等待者、持锁者与竞争进程三者调度状态组合下的八种情形。该系列已历经七版修订，目标同样是合入 7.3。</p>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for July 23, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1083125/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全</h3>
+                    <h3>Catanzaro：GNOME 安全追踪的一些变化</h3>
+                    <p>自 2020 年 11 月起负责 GNOME 安全问题追踪的 Michael Catanzaro 发表博文，说明由于 AI 生成的安全报告激增，他将改变 GNOME 漏洞报告的管理方式：对 8 月 1 日及以后报告的问题，披露期限从 90 天缩短为 30 天。"即便不考虑 AI 生成报告的增加，更短的期限对 GNOME 来说恐怕也更合适。"他还表示将于 2026 年 12 月 1 日完全卸任安全问题追踪工作，这意味着将出现空缺：</p>
+                    <blockquote>
+                        <p>目前没有其他人在追踪 GNOME 安全问题。如果你是经验丰富的 GNOME 社区成员并有意接手这项工作，请告诉我，我会帮你上手。（安全追踪不适合新人。）</p>
+                        <p>这也许也是改进追踪基础设施的机会。我用的是一个 wiki 页面，但它相当原始，需要大量手工维护——比如问题报告关闭后很容易忘记更新页面。理想情况下，我们应当用一个能根据问题实际状态动态更新的正规 Web 应用取代 wiki。</p>
+                    </blockquote>
+
+                    <h3>PyPI 现在拒绝向超过 14 天的发布追加新文件</h3>
+                    <p>Python 软件基金会安全常驻开发者 Seth Larson 宣布：Python Package Index（PyPI）现在会拒绝向超过 14 天的发布（release）上传新文件。这一限制旨在防止 PyPI 项目的发布令牌或工作流被攻陷后，旧版本被投毒。相关讨论始于 2024 年 1 月的 PEP 740（数字认证），并在 2026 年 3 月热门包 LiteLLM 与 Telnyx 因 Trivy GitHub Action 的"可变引用"被攻陷后重启。为量化影响，PyPI 数据库查询显示：前 15,000 个包中，只有 56 个项目曾在发布超过 14 天后追加过 3.14 兼容的 wheel。</p>
+
+                    <h3>《Half a Second》——一本关于 XZ 后门的书</h3>
+                    <p>Adrian Mastronardi 出版了《Half a Second》一书，详细回顾 2024 年的 XZ 后门事件。该书以（非自由的）CC 非商业、禁止演绎许可免费提供：</p>
+                    <blockquote>
+                        <p>《Half a Second》把那个故事讲成一条连续的叙事线：独自维护代码、被耐心而老练地操纵到交出维护权的倦怠志愿者；凭半秒钟的好奇心、经由一连串运气与千锤百炼的直觉抓住这次攻击的工程师；以及构建后门的操盘手——他从未被查明身份，本书认为，也许永远不会。</p>
+                    </blockquote>
+
+                    <h3>本周安全引述</h3>
+                    <blockquote>
+                        <p>你看不到前沿模型的人吹嘘自己修复了多少漏洞，他们只吹发现了多少。</p>
+                        <p>—— Daniel Stenberg</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>开始日志分析时，我们先用了商业 API 背后的前沿模型。这行不通：分析需要提交大量真实的攻击命令、漏洞利用载荷和 C2 痕迹，而这些请求被服务商的安全护栏拦截——护栏分不清事件响应者和攻击者。我们改在自己的基础设施上用开放权重模型 GLM 5.2 做取证分析。这还带来第二个好处：攻击者的数据及其引用的凭据都没有离开我们的环境。……给防御者的实用教训是：在事件发生之前，就准备好一个经过审查、可在自有基础设施上运行的强力模型，既避免被护栏锁在门外，也避免攻击者数据和凭据外流。</p>
+                        <p>—— Hugging Face 在遭到一个 OpenAI 模型攻击后发布的新闻稿</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>HuggingFace 似乎从上到下都在"凭感觉"（vibe）开发自己的软件。他们把来自充满敌意的互联网的任意输入喂给这堆感觉。然后一个聊天机器人把它的理解发给一个能以完全控制权运行任何 Kubernetes 命令的服务账号。当这一切出了岔子，他们用更多 AI 来"分析"，再用更多 AI 打补丁。</p>
+                        <p>—— David Gerard</p>
+                    </blockquote>
+
+                    <h3>内核开发</h3>
+                    <h3>内核发布状态</h3>
+                    <p>当前开发内核是 <strong>7.2-rc4</strong>，于 7 月 19 日发布。Linus 说："这一整周我都感觉大家开始休暑假了，但跑了下数据发现我肯定是错了——一切看起来都很正常。"本次发布已包含来自 2,343 位开发者的 14,716 个非合并变更集，其中 481 位是首次内核贡献者。</p>
+                    <table>
+                        <thead>
+                            <tr><th>RC 版本</th><th>日期</th><th>提交数</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>v7.2-rc1</td><td>2026-06-28</td><td>14,395</td></tr>
+                            <tr><td>v7.2-rc2</td><td>2026-07-05</td><td>433</td></tr>
+                            <tr><td>v7.2-rc3</td><td>2026-07-12</td><td>475</td></tr>
+                            <tr><td>v7.2-rc4</td><td>2026-07-19</td><td>557</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>稳定版更新</strong>：大型更新 7.1.4、6.18.39、6.12.96 已于 7 月 18 日发布。规模惊人的 7.1.5（2,077 个提交）、6.18.40（1,611）、6.12.97（1,276）、6.6.145（1,266）、6.1.178（1,067）、5.15.212（843）和 5.10.261（699）正在审查中，预计 7 月 23 日发布。</p>
+
+                    <h3>本周引述</h3>
+                    <blockquote>
+                        <p>嗯，我们一贯的观点是 /proc/vmstat 是开发者的垃圾场，所以条目可以随意添加、删除和更改。不给这个文件写 Document/ 文档，就是我们隐晦地告诉用户这一点的方式 ;)</p>
+                        <p>—— Andrew Morton</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>关于周日那 400 多个 CVE 的元评论：我终于从周末挤出时间，追赶我严重落后的待审队列，差不多快清完了。所有内核 CVE 都在我们的 git 仓库里公开审查，任何人都可以围观和评论。这些条目已挂起数周，本不该让任何人吃惊——唯一的问题是我们花了这么久才把它们发出来（连续 6 周的会议和假期凑成了一场完美风暴）。</p>
+                        <p>—— Greg Kroah-Hartman</p>
+                    </blockquote>
+
+                    <h3>发行版</h3>
+                    <h3>为 Holo Core 构建 Arch Linux aarch64 移植版（Collabora 博客）</h3>
+                    <p>Collabora 发表博文介绍其与 Valve 合作的 Holo Core——将 Arch Linux 移植到 aarch64，作为 Valve 64 位 Arm 游戏设备 Steam Frame 的操作系统。Collabora 已发布源码、二进制包和面向 aarch64 设备的容器镜像。博文描述了将 Arch Linux 移植到新架构的挑战与后续计划：</p>
+                    <blockquote>
+                        <p>迄今构建的基础设施已能从第一性原理构建到某个时间点快照，下一步是把它发展成能持续跟踪 Arch Linux 开发的系统。这项工作将成为一个持续运行的 CI 系统的基础，能够影子跟随 Arch Linux 本身。我们将与上游 Arch Linux 项目合作，协助其将发行版移植到 aarch64 架构，并推进自动化的可重复构建。</p>
+                    </blockquote>
+                    <p>博文还包含在 x86_64 主机上创建和测试 aarch64 构建容器的说明，方便没有 64 位 Arm 设备的用户在家跟练。</p>
+
+                    <h3>本周发行版引述</h3>
+                    <blockquote>
+                        <p>作为发行商，我认为你需要想清楚自己想与上游软件开发者保持什么样的关系。想要保持距离？那我建议放弃离散发布、采用滚动发布模式。在这种模式下，你在上游软件发布的那一刻（或稍后）就采用它，冲突随之消失！几乎所有 bug 都成了上游 bug，你可以放心把用户引向上游开发者而不会被顶回来。不想做滚动发布？也行。那你就得与上游紧密合作。</p>
+                        <p>—— Nate Graham</p>
+                    </blockquote>
+
+                    <h3>开发</h3>
+                    <h3>Firefox 153 发布</h3>
+                    <p>Firefox 浏览器 153.0 版已发布。值得注意的变化包括：更改扩展默认的本地文件访问权限、为所有用户默认启用局域网（LAN）访问限制、当网站获得用户位置权限时显示可视指示器、支持合并 PDF 及将图片作为页面插入 PDF，以及对 JPEG XL 图像格式的实验性支持。面向 Web 开发者的完整改动见开发者发布说明，本次修复的漏洞见安全公告。</p>
+
+                    <h3>本周开发引述</h3>
+                    <blockquote>
+                        <p>维护者倦怠已经是现实，而维护者的离世将愈发频繁——因为 FOSS 越来越像一场世代现象，就像喇叭裤和嬉皮士运动。……"终身仁慈独裁者"式的 FOSS 维护者时代（比如我）正在落幕。未来，所有重要的 FOSS 项目都将由 FOSS 管家或 FOSS 公司任命的委员会维护。</p>
+                        <p>—— Poul-Henning Kamp</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>根本不存在什么"公地"。你只是在对别人的基础设施发起 DoS 攻击。</p>
+                        <p>—— Stefano Zacchiroli</p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for July 23, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1083126/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：DistroWatch Weekly（7 月 20 日）、This week in F-Droid（7 月 16 日）、openSUSE Tumbleweed Review of the Week（7 月 17 日）、Ubuntu Weekly News（7 月 13 日）。</p>
+                    <p><strong>开发</strong>：Emacs News（7 月 20 日）、What's cooking in git.git（7 月 16 日、19 日、20 日三期）、This Week in GNOME（7 月 17 日）、GNU Tools Weekly News（7 月 19 日）、Golang Weekly（7 月 17 日）、Last Week in Kubernetes Development（7 月 16 日）、LLVM Weekly（7 月 20 日）、This Week in Matrix（7 月 17 日）、OCaml Weekly News（7 月 21 日）、Perl Weekly（7 月 20 日）、This Week in Plasma（7 月 18 日）、PyCoder's Weekly（7 月 21 日）、Python Core Dispatch（7 月 18 日）、This month in Radicle CI（7 月 22 日）、Ruby Weekly News（7 月 16 日）、This Week in Rust（7 月 15 日）、Wikimedia Tech News（7 月 20 日）。</p>
+                    <p><strong>会议记录</strong>：Office Hours for the GNU Toolchain（7 月 16 日）、openSUSE Release Engineering minutes（7 月 16 日、22 日两期）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>7 月 31 日</td><td>10 月 14–17 日</td><td>PyCon South Africa</td><td>开普敦，南非</td></tr>
+                            <tr><td>7 月 31 日</td><td>10 月 1–2 日</td><td>embedded Linux for Safe and Secure Applications</td><td>哥廷根，德国</td></tr>
+                            <tr><td>7 月 31 日</td><td>9 月 25–27 日</td><td>PostmarketOS and Alpine Linux Conference</td><td>亚琛，德国</td></tr>
+                            <tr><td>8 月 1 日</td><td>9 月 28 日–10 月 1 日</td><td>Alpine Linux Persistence and Storage Summit</td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>8 月 1 日</td><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 11 日</td><td>10 月 6 日</td><td>Yocto Project Developer Day 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 2–4 日</td><td>GNU Tools Cauldron</td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 3–4 日</td><td>Linux Days 2026</td><td>布拉格，捷克</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>7 月 20–25 日</td><td>DebConf 26</td><td>Santa Fe，阿根廷</td></tr>
+                            <tr><td>8 月 6–9 日</td><td>FOSSY 2026</td><td>温哥华，加拿大</td></tr>
+                            <tr><td>8 月 8–9 日</td><td>UbuCon Asia 2026 @ COSCUP</td><td>台北，中国台湾</td></tr>
+                            <tr><td>8 月 11–12 日</td><td>Open Source Summit Korea</td><td>首尔，韩国</td></tr>
+                            <tr><td>8 月 14–16 日</td><td>Hackers on Planet Earth</td><td>纽约，美国</td></tr>
+                            <tr><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 30 日–9 月 5 日</td><td>FOSS4G Hiroshima 2026</td><td>广岛，日本</td></tr>
+                            <tr><td>9 月 17–18 日</td><td>Git Merge</td><td>里斯本，葡萄牙</td></tr>
+                            <tr><td>9 月 19–20 日</td><td>Nextcloud Community Conference 2026</td><td>柏林，德国</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>本期涵盖了 7 月 16 日至 7 月 22 日期间各发行版发布的大量安全公告，涉及 AlmaLinux、Debian（含 stable 与 LTS）、Fedora、Mageia、Oracle、Red Hat、Slackware、SUSE 以及 Ubuntu。受影响软件包包括：kernel（多个版本系列）、chromium、firefox、glib2、glibc、httpd、webkit2gtk3、libtiff、libxml2、libssh、nss、openssh、openssl、nginx、cups、dovecot、freerdp、gimp、hplip、imagemagick、libreoffice、nodejs、php、podman/buildah/runc/skopeo、python 系列、roundcube、samba、thunderbird、wireshark、xz-utils 等。完整条目见 LWN 安全公告摘要。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（7 月 15 日–7 月 22 日）内核相关补丁精选包括：</p>
+                    <ul>
+                        <li><strong>内核发布</strong>：Linux 7.2-rc4（Linus Torvalds，7 月 19 日）、v7.2-rc4-rt3（Sebastian Andrzej Siewior，7 月 21 日）、Linux 7.1.4 / 6.18.39 / 6.12.96（7 月 18 日）、v6.12.96-rt19（Daniel Wagner，7 月 21 日）、6.1.177-rt65（Clark Williams，7 月 15 日）。</li>
+                        <li><strong>架构相关</strong>：arm64 KVM 对 Arm CCA 的支持、riscv Svnapot PTE 折叠与 BPF Exceptions、powerpc/eeh RTAS 错误注入、s390/mm 批量 PTE 更新、x86 perf 的 SIMD/eGPRs/SSP 采样等。</li>
+                        <li><strong>核心内核</strong>：BPF 全局 percpu 数据、sched 代理执行兼容 sched_ext、tracing 硬件观察点 wprobe、pidfd 最小进程创建构造器、rust: sync Rcu*Box、binfmt_misc 透明解释器等。</li>
+                        <li><strong>开发工具</strong>：tracing/osnoise 跟踪 IPI、selftests/mm、kselftest/arm64、KVM selftests 等。</li>
+                        <li><strong>设备驱动</strong>：MediaTek DSC/WDMA、蓝牙 btmtk MT7928、accel/rocket RK3576 NPU、wifi ath11k/ath12k TX 流控等超百项新硬件支持与改进。</li>
+                        <li><strong>驱动基础设施</strong>：Rust 基础串口总线抽象、clk 时钟枢纽（clock nexus）、usb eUSB2v2 支持、Rust 运行时电源管理等。</li>
+                        <li><strong>文件系统与块层</strong>：NFS Direct I/O 现代化、ntfs EA 属性校验、btrfs -ENOMEM 处理、XFS fs-verity、io_uring removexattr/listxattr 等。</li>
+                        <li><strong>内存管理</strong>：mm/hmm userfaultfd 场景放锁、vmalloc 加速 ioremap、mm/damon 大页折叠、私有内存 NUMA 节点等。</li>
+                        <li><strong>网络</strong>：QUIC 基础设施、devlink 启动期 eswitch 模式、tc FRER 动作、GeoNetworking 协议、bpf_ksock 等。</li>
+                        <li><strong>安全相关</strong>：seccomp pinned-memfd 重定向、AES 库 API、Bootpatch-SLR 结构体布局随机化、landlock POSIX 消息队列作用域等。</li>
+                        <li><strong>虚拟化与容器</strong>：KVM arm64 hVHE TTBR1_EL2、x86 内存保护属性、arm64 SME 支持、NV2p1/NV3、Hyper-V PCI 直通等。</li>
+                        <li><strong>杂项</strong>：Rust 限速打印、xfsprogs v7.1.1 发布等。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1083123/" target="_blank">LWN.net Weekly Edition for July 23, 2026</a></p>
+            <p>更新时间：2026年7月30日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
