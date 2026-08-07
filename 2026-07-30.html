@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年7月30日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年7月30日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">为内核引入 Hazard Pointers（危险指针）</a></li>
+                    <li><a href="#article2">Debian 新 DFSG 团队工作纪实</a></li>
+                    <li><a href="#article3">为交换设备引入操作结构体</a></li>
+                    <li><a href="#article4">netkit 进展与 BPF 在用户空间的应用（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article5">为内联函数补充调试信息（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article6">Fedora 批准一款更精简的 GRUB</a></li>
+                    <li><a href="#article7">用 gccrs 编译 Linux 内核的进展</a></li>
+                    <li><a href="#quotes">💬 本周引述</a></li>
+                    <li><a href="#briefs">📝 简讯</a></li>
+                    <li><a href="#announcements">📢 公告</a></li>
+                </ul>
+            </div>
+
+            <!-- 文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">内核 / 并发</span>
+                    <h2>为内核引入 Hazard Pointers（危险指针）</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月27日</span>
+                        <span><a href="https://lwn.net/Articles/1084015/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>内核的读-复制-更新（RCU）子系统确保：在已知没有任何线程仍持有对某一对象的引用之前，该对象不会被删除。RCU 工作良好，并被广泛用于整个内核，但它会增加内存占用，并且在未使用的内核对象被清理之前引入显著的延迟。<a href="https://en.wikipedia.org/wiki/Hazard_pointer">Hazard pointers</a>（危险指针）是无锁数据更新的一种替代方案，至少在某些场景下能提供更好的性能。内核社区目前正在考虑由 Mathieu Desnoyers 与 Paul McKenney 提出的<a href="https://lwn.net/ml/all/23e34c2e-67fd-45da-b130-e70a131a59ea@paulmck-laptop">一个 hazard-pointer 实现</a>。</p>
+
+                    <p>与 RCU 类似，hazard pointers 旨在成为一种对不可变对象持有短生命周期引用的方式，该对象在所有引用消失后可能被释放。持有 RCU 保护数据引用的代码必须禁用抢占（disable preemption）；而 hazard pointers 看起来被设计为允许抢占，尽管这种用法可能并非完全最优。</p>
+
+                    <h3>hazard-pointer API</h3>
+                    <p>在 API 层面，使用 hazard pointers 的代码必须为每个同时使用的指针分配一个上下文（<code>struct hazptr_ctx</code>）；该结构通常放置在栈上。如果有一个指向受 hazard pointer 保护对象的指针（我们称之为 <code>resource</code>），且代码需要访问该对象，则必须首先通过调用以下函数获取该指针：</p>
+                    <pre><code>void *hazptr_acquire(struct hazptr_ctx *ctx, void * const *address);</code></pre>
+                    <p>其中 <code>ctx</code> 为上述描述的上下文，<code>address</code> 在此例中为 <code>resource</code> 的地址。该调用将返回 <code>resource</code> 的当前值（受保护对象的地址），并确保在引用保持期间该对象不会被修改或删除。当对受保护对象的工作完成后，代码必须调用：</p>
+                    <pre><code>void hazptr_release(struct hazptr_ctx *ctx, void *address);</code></pre>
+                    <p>其中 <code>address</code> 为 resource 旧副本的地址；此调用后，之前受保护的对象不再可用。</p>
+                    <p>通常，hazard pointer 必须在获取它的同一执行上下文中释放——即同一线程或中断处理程序中。但有时可能需要在不同环境中释放该指针。这可以做到，但仅当 hazard-pointer 上下文被传递给此函数时：</p>
+                    <pre><code>void hazptr_detach(struct hazptr_ctx *ctx);</code></pre>
+                    <p>该调用显然必须在指针实际释放之前进行。</p>
+                    <p>在生产者侧，当需要用新对象替换受保护对象时，代码应创建并初始化新对象，将 <code>resource</code> 指针指向该新副本，然后调用：</p>
+                    <pre><code>void hazptr_synchronize(void *address);</code></pre>
+                    <p>该调用必须在可抢占上下文（preemptible context）中进行，它将等待直到给定 <code>address</code> 不再有任何 hazard-pointer 引用，然后返回调用者。此时该地址处的对象可被释放。</p>
+
+                    <h3>实现</h3>
+                    <p>hazard pointers 背后的核心思想相对简单：<code>hazptr_acquire()</code> 调用将指针添加到一个特殊列表，而 <code>hazptr_release()</code> 将其从该列表移除。当进行 <code>hazptr_synchronize()</code> 调用时，扫描该列表查找相关地址；若找到该地址，函数将等待直到它被移除。该算法本可用一个由锁保护的简单链表实现，但此举目的在于最大化性能，因此实际实现更为复杂。</p>
+                    <p>hazard-pointer 代码维护一个全局每 CPU 数组，每个 CPU 上有四个槽位（slots）。过于简化的算法解释是：在 <code>hazptr_acquire()</code> 调用时，找到一个空槽，并将相关地址存入其中。<code>hazptr_synchronize()</code> 调用随后可简单扫描这些槽（在每个 CPU 上）并等待直到其中无一包含受保护地址。但同样，这里存在复杂性。</p>
+                    <p>其中一个是顺序问题（ordering problem）。<code>hazptr_acquire()</code> 必须先读取要获取的指针，然后将其存入槽中。在同步侧，必须先更改该指针，然后搜索槽中先前的值。如果同步代码在两个 acquire 操作之间运行——即指针被读取后、但存入槽之前——它将断定无引用并释放仍在使用中的对象。这不是这段代码作者愿意面对的某种 hazard。</p>
+                    <p>为解决此问题，槽被维护为三种不同状态。若槽中存储的地址为 <code>NULL</code>，则该槽空闲且未保护任何指针。若包含非 <code>NULL</code> 指针值，则该槽被占用并保护该指针。但存在第三种值 <code>HAZPTR_WILDCARD</code>（其值为 <code>0x1UL</code>）用于表示槽正在被分配过程中。<code>hazptr_acquire()</code> 首先找到一个空闲槽并将其值设为 <code>HAZPTR_WILDCARD</code>；只有在这之后它才读取地址值，并随后存入槽中。<code>hazptr_synchronize()</code> 将任何包含 <code>HAZPTR_WILDCARD</code> 的槽视为包含其正在查找的指针，因此它将等待直到真实指针值出现在该槽中才返回。这一额外检查防止了上述竞争条件（race）。</p>
+                    <p>另一个复杂性是：如果需要超过四个槽怎么办？任何给定函数可能不需要这么多槽，但无法知晓更深调用链中的函数会使用多少。hazard-pointer API 本可在此时返回错误，但这似乎是制造难以发现的 bug 的可靠方式。相反，处理此情况正是 <code>hazptr_ctx</code> 结构的目的。</p>
+                    <p>该结构包含一个备用槽（spare slot），若每 CPU 槽均不可用时可用其持有 hazard pointer。此时，代码使用上下文结构中的槽，然后将该结构链接到一个每 CPU 列表。当发生 <code>hazptr_synchronize()</code> 调用时，它必须搜索那些每 CPU 列表以及每 CPU 槽，以确保地址未受保护。作为额外转折，实际存在<em>两个</em>每 CPU 链表；一个可用于添加，另一个可用于搜索，再次防止竞争条件。列表遍历有拖慢一切的风险，但这些列表几乎总为空。</p>
+                    <p>溢出槽（overflow slot）除了扩展四个每 CPU 槽外还有若干用途。上述 <code>hazptr_detach()</code> 调用会立即将给定指针移至溢出槽（若尚未在其中），从而释放每 CPU 槽供其他使用。调度器（scheduler）中还添加了一个特殊回调，在上下文切换（context switches）时调用；该回调将所有每 CPU 槽移至其对应溢出槽。这样，若线程在使用 hazard-pointer 槽时被抢占，它将释放更快的每 CPU 槽给随后运行者。</p>
+                    <p>这段代码仍处于相对早期状态，在进入主线前可能还会演变。重要的是，该补丁系列未包含任何 API 使用者，而这通常是对此类新子系统的要求。这些使用者的创建很可能揭示 API 缺陷，以便在合并上游前解决。因此很难猜测（hazard a guess）hazard pointers 何时可供内核开发者使用。</p>
+                </div>
+            </div>
+
+            <!-- 文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">发行版 / Debian</span>
+                    <h2>Debian 新 DFSG 团队工作纪实</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年7月28日</span>
+                        <span><a href="https://lwn.net/Articles/1084499/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p><a href="https://wiki.debian.org/Teams/DFSG">DFSG、许可与新包团队</a>（通常简称为 "DFSG team"）创建于 2025 年 10 月，作为 <a href="https://lwn.net/Articles/1043364/">ftpmaster 团队拆分</a>的一部分。其工作是在包进入 <a href="https://www.debian.org/doc/manuals/debian-faq/ftparchives.en">Debian archive</a> 前，审查 <a href="https://wiki.debian.org/NewQueue">new queue</a> 中的包是否符合 <a href="https://wiki.debian.org/DebianFreeSoftwareGuidelines">Debian 自由软件准则</a>（DFSG）等要求。这一变更酝酿已久，拆分后仍存在些许疑问：这是否是正确举措。Andrew McMillan 在 <a href="https://debconf26.debconf.org/">DebConf26</a> 期间概览了该团队的活动与当前状态。虽下结论为时尚早，但他的报告表明新的职责划分运作良好。</p>
+                    <p>我未参加 DebConf26，但观看了 McMillan 演讲的录像，提供 WebM 格式（<a href="https://meetings-archive.debian.net/pub/debian-meetings/2026/DebConf26/debconf26-269-welcome-to-the-dfsg-team.av1.webm">HD quality</a>、<a href="https://meetings-archive.debian.net/pub/debian-meetings/2026/DebConf26/debconf26-269-welcome-to-the-dfsg-team.lq.webm">low-resolution video</a>）。演示幻灯片尚未提供。</p>
+
+                    <h3>Ftpmaster 的拆分</h3>
+                    <p>二十多年来，Debian 的 <a href="https://ftp-master.debian.org/">ftpmaster</a> 团队负责允许新包进入 Debian、移除旧包，以及维护 Debian 的 archive。有时，包在 new queue 中滞留时间长于 Debian 开发者预期，该团队被一些人视为需要关注的瓶颈。</p>
+                    <p>重构团队的想法在 <a href="https://debconf24.debconf.org/">DebConf24</a> 的 "meet the ftpteam" BoF 中被提出。2025 年 10 月 3 日，Debian 项目领导人（DPL）Andreas Tille <a href="https://lwn.net/ml/all/aN9v-QYu_NB6I583@an3as.eu/">宣布</a>计划将 ftpmaster 团队拆分为两部分：<a href="https://wiki.debian.org/Teams/ArchiveOperations">Archive Operations Team</a>（负责支持 Debian archives 的基础设施）和 DFSG team。Tille 于 2025 年 10 月 26 日启动变更；他创建新团队的代表团并撤销 ftpmaster 团队的代表团，从而解散之。</p>
+                    <p>DFSG team 的 <a href="https://lwn.net/ml/all/aP4BFPFyOC1UPSpH%40an3as.eu/">首个代表团</a>完全由前 ftpmaster 成员组成：Thorsten Alteholz、Ansgar Burchardt、Joerg Jaspert 和 Luke Faraone，他们也均 <a href="https://lwn.net/ml/all/aP4BH4bM6JoLnDWY%40an3as.eu/">被任命至新 Archive team</a>。2026 年 1 月 19 日，Tille <a href="https://lwn.net/ml/all/aW40P_28P2ZukDyd@an3as.eu/">任命新代表团</a>给 DFSG team：McMillan、Emmanuel Arias、Nicolas Mora、Mechtilde Stehmann 和 Reinhard Tartler。</p>
+
+                    <h3>团队介绍</h3>
+                    <p>McMillan 表示演讲本应由 Arias 和 Tartler 共同进行；但 Tartler 需飞回纽约，Arias 在场但未演讲，因他 "出了名地害羞"，不过他乐意用西班牙语答疑。"In English, I'll do the talking, I guess." Mora 和 Stehmann 原计划远程加入，但演讲房间的网络问题使之不可能。</p>
+                    <p>他承认团队名称冗长，但 "DFSG team" 易读却也遗漏了部分职责。他指出团队除确保打包软件符合 <a href="https://www.debian.org/social_contract#guidelines">Debian 自由软件准则</a>外，还审查包是否符合打包标准等。</p>
+                    <p>DFSG team 不替代 ftpmaster team，他说："We just do a very specific task, which was largely done by Thorsten Alteholz in the past." Alteholz 做得很好，"but it was more than one person can handle"。DFSG team 更多并行工作，尽量避免被任何特定包阻塞。"And if somebody's not available, then we can work around that." McMillan 也谈了团队不做的事：不完全替代 ftpmaster。进入 Debian <a href="https://wiki.debian.org/DebianStable">stable</a> 发布、<a href="https://wiki.debian.org/DebianSecurity">security</a> 与 <a href="https://wiki.debian.org/Backports">backports</a> 仓库及其他 archives 的包处理由 Archive team 负责。</p>
+                    <p>他展示幻灯片文字："Thesis: a package isn't free until someone checks"。McMillan 说 DFSG team 必须在包进入 archive 前检查是否为自由软件；也审查前往 <a href="https://www.debian.org/doc/debian-policy/ch-archive#the-contrib-archive-area">contrib</a> 和 <a href="https://www.debian.org/doc/debian-policy/ch-archive#the-non-free-archive-area">non-free</a> 仓库的包。"We review those as well with less-stringent requirements, as is appropriate for non-free."</p>
+                    <p>经 DFSG team 之手的有两类包：从未或当前不在 Debian 中的全新 source 包；以及 "binary new" 包（他解释因版本递增等改名）"We tend to review the binary new packages much more leniently, but we still find packages that have been around in Debian for 15 years that have issues with their licensing"。</p>
+                    <p>此类情况，团队常带备注接受包，请打包者修改。"We would rather accept a package which has some minor changes needed, and we'll just ask you to make the minor changes after it's entered the archive." 这省去大量往返（round-tripping）。</p>
+                    <p>McMillan 详述审查内容：<code>debian/copyright</code> 中许可与源码头不同、捆绑非自由资源等。有时 "people put something into the Debian copyright [file] that seems to be a license, but it actually is just verbiage about the license that's put on a web page or something"。团队须请打包者将实际许可放入 <code>debian/copyright</code>。</p>
+                    <p>多数包使用 <a href="https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/">copyright format 1.0</a> 规范（机器可解释格式）。该格式即 DEP-5，2007 年作为 <a href="https://dep-team.pages.debian.net/">Debian Enhancement Proposal</a> (DEP) 提出。McMillan 希望观众熟悉 DEP-5；观众示意熟悉后他说 "good, we want to make it mandatory for new packages to be DEP-5"。</p>
+                    <p>他说 DEP-5 要求可能在年底前引入。"We might actually make it actually apply retroactively that it is a bug for a package not to have the copyright in DEP-5 format." 这有助于管理大量计算机者了解许可。"Software bill of materials people, and that sort of thing." 目前不合 DEP-5 的包数未知。</p>
+
+                    <h3>仪表盘</h3>
+                    <p>开发者可通过 DFSG team 的 <a href="https://dfsg-new-queue.debian.org/dashboard">Dashboard</a> 跟踪包进度。McMillan 说 dashboard 是队列的简单 web 展示，底层极复杂。</p>
+                    <p>Archive team 使用 <a href="https://ftp-master.debian.org/#dak">Debian Archive Kit</a> (dak) 脚本管理 archive。DFSG team 讨论也用 dak，但决定用独立软件与界面。"So we interact with dak, our software interacts with dak, but we don't have to learn how dak works. That can be somebody else's problem."</p>
+                    <p>他说团队用专注其流程的软件。展示 <a href="https://salsa.debian.org/dfsg-team/dfsg-new-queue#dfsg-new-queue"><code>dnq</code></a> 用例：如 <code>dnq list</code> 显示待审包，<code>dnq fetch</code> 获取包，<code>dnq assign packagename</code> 分配审阅者等。<code>dnq complete accept</code> 最终化审阅并交 dak 发邮件。"Or, now and again, somebody might get a reject [email]. Hopefully nobody in this room."</p>
+                    <p>他说团队仍互相学习："We kind of all have slightly different workflows because we're a new team and we're evolving." 成员技能不同：Stehmann 有法律背景，善读许可。</p>
+
+                    <h3>优先级与成果</h3>
+                    <p>成员自选审阅包，McMillan 说："The ones that come to the top of my list tend to be languages that I'm more familiar with, like Go. And the ones that go to the bottom of my list tend to be languages that I'm less familiar with, like Python." 反之 Arias 熟 Python。棘手包（如 1990 年代大包）指定团队审。</p>
+                    <p>他说新团队接手时队列超 750 包；现通常少于 30。团队优先最旧包，"but also with a balance to get important packages"。新 binary 包优先于新 source 包。高 <a href="https://popcon.debian.org/">popularity contest</a> (popcon) 分也优先。</p>
+                    <p>团队通常 2–3 天处理完，"if it takes more than a week for your package to get through, you've hopefully had some communication with the reviewer in that process"。鼓励打包者邮件联系。</p>
+                    <p>虽更快，McMillan 说团队需更多人，邀请有意者加入。他期望系统将更多负载给普通 Debian 开发者："some kind of quorum sort of structure" 允许有上传权者背书，够票即接受。</p>
+                    <p>他说去年 DebConf 大量讨论 "about the difficulty with getting [new] packages accepted into Debian, and I think this year we're not talking about that"。他开放提问，观众无问题，提早结束。</p>
+                </div>
+            </div>
+
+            <!-- 文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">内核 / 内存管理</span>
+                    <h2>为交换设备引入操作结构体</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月23日</span>
+                        <span><a href="https://lwn.net/Articles/1083094/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在 <a href="https://lwn.net/Articles/lsfmmbpf2026/">2026 Linux 存储、文件系统、内存管理与 BPF 峰会</a>（LSFMM+BPF）上提出的一个想法是为 swap 子系统创建 <a href="https://lwn.net/Articles/1072657/#:~:text=Abstracting%20the%20swap%20backend">一个操作结构体</a>。像内核许多部分一样，swap 层随时间演变，所需即加；最终结果罕如今日设计。swap 层与其使用设备间的接口即一例。swap 子系统演变的一个结果——缺乏对接底层存储的抽象层——似乎将很快被解决，但以不同于最初设想的方式。</p>
+                    <p>早期，内核只能 swap 到本地磁盘专用分区。若分区太小（最终总是如此），通常需重分区整盘。后来能使用文件系统中文件作 swap 减轻了管理员负担；再后内核获得 swap 到网络文件系统能力。在 swap 层内，这些后端各编码为特殊案例。缺乏抽象使子系统难维护改进。</p>
+                    <p>Baoquan He 创建的 <a href="https://lwn.net/ml/all/20260515015737.890994-1-baoquan.he@linux.dev">补丁系列</a>已酝酿有时。swap 层与后端接口由下结构定义：</p>
+                    <pre><code>struct swap_ops {
+    void (*read_folio)(struct swap_info_struct *sis, struct folio *folio,
+                       struct swap_iocb **plug);
+    void (*write_folio)(struct swap_info_struct *sis, struct folio *folio,
+                        struct swap_iocb **plug);
+    void (*unplug)(struct swap_iocb *sio);
+};</code></pre>
+                    <p><code>read_folio()</code> 和 <code>write_folio()</code> 目的明显：在内存与底层 swap 设备间移动页。<code>unplug()</code> 用于启动一批累积 I/O 操作。这组操作向 swap 子系统其余部分隐藏后端差异。</p>
+                    <p>He 系列定义了三种 <code>swap_ops</code> 结构：</p>
+                    <ul>
+                        <li><strong>bdev_async_swap_ops</strong>：常规 swap 到块设备。操作异步。注意 swap 到本地文件系统文件也通常由这些操作处理。加 swap 文件时，内核请文件系统指定块位置，然后绕过文件系统做 I/O。</li>
+                        <li><strong>bdev_sync_swap_ops</strong>：本地块设备但同步；函数至操作完成才返回。即 "swap bypass" 案例（见 <a href="https://lwn.net/Articles/1057102/">此文</a>）；对快速内存设备，操作即内存拷贝，无异步必要。</li>
+                        <li><strong>bdev_fs_swap_ops</strong>：调用文件系统做实际 I/O。非本地文件系统，为网络文件系统 swap 所需。</li>
+                    </ul>
+                    <p>该系列经七版，似将合并。但 LSFMM+BPF 后 Christoph Hellwig 提出 <a href="https://lwn.net/ml/all/20260713093350.2154226-1-hch@lst.de">不同方案</a>，聚焦增加 swap-I/O 批处理性能。其添加受 He 启发但不同的操作结构：</p>
+                    <pre><code>struct swap_ops {
+    unsigned int flags;
+    bool (*can_merge)(struct folio *folio, struct folio *prev_folio,
+            size_t prev_folio_size, int rw);
+    void (*submit_write)(struct swap_io_ctx *ctx);
+    void (*submit_read)(struct swap_io_ctx *ctx);
+};</code></pre>
+                    <p><code>can_merge()</code> 判定两 folio 的 I/O 能否合并为更大操作。须判定存储是否逻辑相邻，故不同后端计算不同。<code>submit_write()</code> 和 <code>submit_read()</code> 发起 I/O，细节聚于 <code>ctx</code>。仅一 <code>flags</code> 值 <code>SWAP_OPS_F_REQUIRE_NOFS</code>，指示回收操作不得调用文件系统，以免递归调用。</p>
+                    <p>Hellwig 补丁仅定义两种结构：<code>swap_bdev_ops</code>（块设备）和 <code>swap_fs_ops</code>（文件系统后端）。同步 bypass 由块设备实现中测试处理。</p>
+                    <p>该系列第五版，似就绪，但可能赶不上 7.3 合并窗口。问题：Sashiko 审查工具对补丁本身少抱怨，但 <a href="https://sashiko.dev/#/patchset/20260713093350.2154226-1-hch@lst.de">发现补丁修改的代码中若干已有问题</a>。自然欲修，但延迟新工作不总受欢迎。此事未定。</p>
+                </div>
+            </div>
+
+            <!-- 文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">内核 / BPF · 网络</span>
+                    <h2>netkit 进展与 BPF 在用户空间的应用</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年7月24日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1083418/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Daniel Borkmann 在 2026 <a href="https://events.linuxfoundation.org/lsfmmbpf/">Linux 文件系统、内存管理与 BPF 峰会</a>上领导了关于 netkit 进展的会议；netkit 允许运行于 Linux 的虚拟机（VMs）高效联网。时间有余时，他讨论了用 BPF live-patch（热补丁）用户空间应用的想法。netkit 正进展，已支持零拷贝收包至网络命名空间内 VM，但用 BPF 补丁用户程序仍纯属推测。</p>
+                    <p>长期有 VM 加速网络或访物理设备之法，但不兼容网络命名空间。该组合为 <a href="https://kubevirt.io/">KubeVirt</a> 所需（Kubernetes 用 VM 隔离、网络命名空间设策略）。最终 Borkmann 欲使 VM 做真零拷贝网络。关键步是最近 <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=d04686d9bc86432ea3008d5f358373d8466d1943">合并</a>的 queue leasing 支持。</p>
+                    <p>Queue leasing 允许 VMM 在 VM 虚拟网络设备建队列，绑到主机设备真实队列，实现零拷贝。目前仅收队列工作：包到物理 NIC 时驱动直放 VM 队列内存，VM 直接访。</p>
+                    <p>收队列 leasing 健壮；已与 huge pages 或 <a href="https://lwn.net/Articles/884104/">BIG TCP</a> 等优化共作（若 NIC 支持）。需自测确保。发队列侧更复杂。</p>
+                    <p>发队列 leasing 底层设计近似：VM 直放包至物理 NIC 可访内存。John Fastabend 问发侧是否需 BPF 程序强制策略。Borkmann 答 netkit 即便无 queue leasing 也装此类 BPF。非所有物理设备支持直访内存。Bobby Eshleman <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7a348a95f696d20f15c776de4df8b4415bcf3d77">补丁</a>（5 月 18 合并）扩展 device memory transmit 属性示物理设备支持否；netkit 只需传该属性。</p>
+                    <p>直传数据不避网络命名空间策略，因包头仍走正常流程含 BPF 过滤。仅数据部分直给。发队列 leasing 可用后适多数场景。</p>
+                    <p>一观众问何组件设收队列 leasing，何防 VM 耗尽主机队列。Borkmann 说其用例由 <a href="https://cilium.io/">Cilium</a> 设。对应总由 VMM 软件设；VM 不能自决。同一人问为何每 VM 需独立发队列；收侧因需导向不同 VM，发侧不必。Borkmann 说或可用共享发队列，但曾见 XDP 分配队列映射致物理 NIC 状态 bug。分离防干扰。该人提建议 Borkmann 允查。</p>
+
+                    <h3>用 BPF 对用户空间热补丁</h3>
+                    <p>Borkmann 另一话题是用 BPF live-patch 用户程序。想法来自 Fastabend <a href="https://lwn.net/Articles/1081546/">早先演讲</a>：用户程序难及时补安全漏洞。若内核生 trampolines 或 JIT 代码直跑用户空间？可做参数验证或返回值改。也可优化 uprobes 性能。</p>
+                    <p>当然可直接改用户程序 text 页补丁，但错补易毁程序。BPF 可能因同内核原因有用：BPF 程序可验证不崩。诸多关键用户程序欢迎不崩 live-patching。</p>
+                    <p>Borkmann 设想：内核验 BPF 程序、编为位置无关代码、注入运行用户程序可执行内存。用户进程直跑。复杂处：BPF 程序无内核专用接口（如多数 BPF maps），但简单补丁用 BPF arenas 足够。</p>
+                    <p>Song Liu 认为许多重要属性无法验证，用户空间 BPF 仍可能崩。Borkmann 认为类 Fastabend "shields" 小程无碍。Liu 说内核 verifier 有明确允许集，用户空间无，故 verifier 是否够用不明。</p>
+                    <p>Jakub Sitnicki 问 BPF 补丁较 uprobes 何优。Borkmann 说 BPF 直跑用户空间免陷内核开销。Andrii Nakryiko 认同 uprobes 性能有限。Liu 建议部分 uprobe 功能移用户空间无需 BPF。</p>
+                    <p>Nakryiko 指如何挂钩生成代码入用户可执行：uprobes 用断点指令内核模拟；补长跳至 BPF trampoline 更复杂："this rewriting of generic instructions is very hard"。我问包含特殊目标位易补否，Nakryiko 说 uprobes 益在可跑任意函数。</p>
+                    <p>将尽时另一观众请抽 verifier 为独立库。其类型系统检查跨上下文有益。</p>
+                    <p>总体开发者觉 BPF 用户补丁因故难，但无不反对。是否值当未定。</p>
+                </div>
+            </div>
+
+            <!-- 文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">内核 / BPF · 工具链</span>
+                    <h2>为内联函数补充调试信息</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年7月29日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1083985/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>BPF 程序用 <a href="https://docs.kernel.org/bpf/btf.html">BPF type format</a>（BTF）调试信息确定如何与内核函数交互。追踪内核函数涉及在 BTF 节找地址——但对内联（inlined）函数无效，因其无单地址。Alan Maguire 想在 BTF 加内联函数信息以允追踪，在 2026 <a href="https://events.linuxfoundation.org/lsfmmbpf/">Linux 存储、文件系统、内存管理与 BPF 峰会</a>上领导此会议。</p>
+                    <p>内核超 100,000 内联函数，散于五倍位置。部分半内联（部分正常调、部分内联），致今似追踪成功但漏调用。</p>
+                    <p>好消息：追踪内联基础设施已备 <a href="https://docs.kernel.org/trace/kprobes.html">kprobes</a>。仅须将内联位置数据入可用格式。"The story is actually pretty complete."</p>
+                    <p>BTF 存何？<a href="https://dwarfstd.org/">DWARF</a> 有内联指示但难用。BTF 方案应紧凑、可去重（deduplication）。理想存独立节或模块。</p>
+                    <p>具体 Maguire 提三新信息：一为 inline-site 特定信息（何函数内联于何调用点、若未内联如何调）称 "location section"。难去重，故尽量指可去重数据。二、三为所指数据："location prototype" 与 "location parameter"。location prototype 指定参数如何表为 location parameters 列表，各存单参访问法。编译器理论每内联点（538,090）异位，实有限变换，现去重后仅 57,141 条 location prototype 引 17,535 条 location parameter。</p>
+                    <p>故 location sections 占多数。总增 BTF 约 11MB，每内联点 21 字节。分离压缩后 3.5MB。</p>
+                    <p>Maguire 举例：</p>
+                    <pre><code>int foo(int a, void *b, bool c);</code></pre>
+                    <p>若内联消 <code>a</code>、升 <code>b</code> 入寄存器、<code>c</code> 为常数，BTF 表现为单 location section 条：存 <code>foo()</code> BTF type ID、调用点偏移、指 location-prototype。后者为长度标记数组引 location-parameter：首空（<code>a</code> 不可复）、次指寄存器标志与号、末常标志与值。</p>
+                    <p>Alexei Starovoitov 问 location-section 条目序。Maguire 原想按地址排，后改按函数名排便二分搜。</p>
+                    <p>两前置问题：location-section 条数需长度字段扩至 24 位；现工具有不识新 tag 问题。Maguire 将 BTF 解析信息加进 BTF 自身，工具可跳未知 tag。</p>
+                    <p>他更新 <a href="https://lwn.net/Articles/335942/">poke-a-hole (pahole)</a> 排序新 tag。Andrii Nakryiko 问树外模块；需 <a href="https://lwn.net/Articles/978317/">resilient module BTF</a> 重定位，设计允但繁。</p>
+                    <p>写时 Maguire <a href="https://lwn.net/ml/bpf/20251008173512.731801-1-alan.maguire@oracle.com/">补丁</a>未合。值否未定。</p>
+                </div>
+            </div>
+
+            <!-- 文章 6 -->
+            <div class="article" id="article6">
+                <div class="article-header">
+                    <span class="article-category">发行版 / Fedora</span>
+                    <h2>Fedora 批准一款更精简的 GRUB</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年7月29日</span>
+                        <span><a href="https://lwn.net/Articles/1085609/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Leo Sandoval 和 Marta Lewandowska 为 Fedora 45（预计 10 月）提 <a href="https://fedoraproject.org/wiki/Changes/Grub2LightForConfidentialComputing#Detailed_Description">change proposal</a>：提供单独精简 <a href="https://www.gnu.org/software/grub/">GRUB</a> 版用于小众场景。新包附加于主 GRUB 包不替代之。有贡献者抵制建议用 <a href="https://www.freedesktop.org/software/systemd/man/latest/systemd-boot.html">systemd-boot</a>。但 Fedora Engineering Steering Council（FESCo）<a href="https://forge.fedoraproject.org/fesco/tickets/issues/3626#issuecomment-1058486">投票接受</a>于 7 月 7 日。</p>
+
+                    <h3>已签名、已封印、已启动</h3>
+                    <p>提案指定建 UEFI-only GRUB 含最小模块启 <a href="https://uapi-group.org/specifications/specs/unified_kernel_image/">unified kernel images</a>（UKIs）用 <a href="https://uapi-group.org/specifications/specs/boot_loader_specification/">boot loader specification</a>（BLS）文件。目标为虚环境（如公有云 VM）启 <a href="https://fedoramagazine.org/sealed-atomic-desktops-test-images/">sealed bootable container</a> 做 <a href="https://lwn.net/Articles/1030818/">confidential computing</a>。</p>
+                    <p>LWN 曾 <a href="https://lwn.net/Articles/979182/">覆盖 bootable containers</a>（bootc），<em>sealed</em> bootc 较新。sealed image 含全验证链：固件、UKI、<a href="https://bootc.dev/bootc/experimental-composefs.html">composefs</a> 启 <a href="https://lwn.net/Articles/763729/">fs-verity</a> 非 <a href="https://ostreedev.github.io/ostree/">OSTree</a>。仅 x86_64/aarch64 UEFI 支持。</p>
+                    <p>主用户为 <a href="https://fedoraproject.org/coreos/">Fedora CoreOS</a>。因 CoreOS 最小自动更新，精简 GRUB 减攻击面。提案想 "a minimal UEFI bootloader for virtual environments"。</p>
+                    <p>有趣 Lewandowska 曾论替 GRUB 现拥之。她 2024 <a href="https://lwn.net/Articles/979789/">DevConf.cz 讲</a> <a href="https://github.com/rhboot/nmbl-poc#nmbl-proof-of-concept">nmbl</a>（"no more bootloader"）用内核自启。其 <a href="https://fizuxchyk.wordpress.com/2024/06/13/nmbl-we-dont-need-a-bootloader/">博文</a>概览。她指 Red Hat 背 "hundreds of downstream patches" 及 GRUB 复杂、多漏洞。</p>
+                    <p>讨论中 Lewandowska <a href="https://discussion.fedoraproject.org/t/f45-change-proposal-grub-efi-for-confidential-computing-self-contained/193574/15">解释</a>改观："This year GRUB upstream moved to GitLab, has much better [continuous integration], become more accessible and much more lively." nmbl 停滞；<a href="https://github.com/rhboot/dracut-nmbl#nmbl-proof-of-concept">仓库</a> 2025 年 8 月更。提案未提 nmbl。</p>
+
+                    <h3>为何不用 systemd-boot？</h3>
+                    <p>原 sealed bootc 想用 systemd-boot。提案说考虑后因：systemd-boot "has not been widely tested or fuzzed, like GRUB has been" 及维护多 bootloader 增债。<a href="https://fedoraproject.org/w/index.php?title=Changes%2FGrub2LightForConfidentialComputing&oldid=773544">早期版</a>称 systemd 团队视新特性为 no-go。</p>
+                    <p>论坛 Zbigniew Jędrzejewski-Szmek <a href="https://discussion.fedoraproject.org/t/f45-change-proposal-grub-efi-for-confidential-computing-self-contained/193574/6">说</a>反 systemd-boot 论 "divorced from reality"。其 "fairly widely used"、经 <a href="https://google.github.io/oss-fuzz/">OSS-Fuzz</a> fuzz、常加新特性。</p>
+                    <p>邮件 Lennart Poettering <a href="https://lwn.net/ml/all/ai47lnUbnjt2fqQF%40gardel-login/">评</a>"really irritated" 评不加法特性："We are adding new stuff to systemd-boot/systemd-stub all the time, including stuff contributed by Red Hat's [confidential computing] folks"。Lewandowska <a href="https://discussion.fedoraproject.org/t/f45-change-proposal-grub-efi-for-confidential-computing-self-contained/193574/14">说</a>提案赞助者被 "RHEL/Fedora systemd maintainers" 告知不加法特性。该点后由 Kashyap Chamarthy <a href="https://lwn.net/ml/all/aj0wVBAdAG6_CyUF@fjell/">移除</a>。</p>
+                    <p>Michael Gruber <a href="https://discussion.fedoraproject.org/t/f45-change-proposal-grub-efi-for-confidential-computing-self-contained/193574/3">说</a>不反对但弃 systemd-boot 念遗憾。Alberto Ruiz <a href="https://discussion.fedoraproject.org/t/f45-change-proposal-grub-efi-for-confidential-computing-self-contained/193574/4">亦想</a>拒 systemd-boot 理由错："the burden of maintaining a GRUB variant is likely higher than the burden of supporting systemd-boot in an additional use case that is very limited in scope"。</p>
+                    <p>Lewandowska <a href="https://discussion.fedoraproject.org/t/f45-change-proposal-grub-efi-for-confidential-computing-self-contained/193574/10">说</a>若 GRUB 不广用 "I would agree adopting it for this use case does not make sense"。但投资多故用 GRUB。</p>
+                    <p>提案提 <a href="https://fedoraproject.org/wiki/Changes/Grub2LightForConfidentialComputing#Early_Testing_%28Optional%29">测试包</a>。Gerd Hoffman <a href="https://lwn.net/ml/all/aivwRsbEknKQtXEN@dobby.home.kraxel.org/">观</a>测试包 "does not look very stripped down to me"，比标准 4MB 仅小 64KB。Sandoval <a href="https://lwn.net/ml/all/CACF7NTgiFUApbVtt68CWg68GM_xkx6GCUH75MAnDMNNXEiVybQ@mail.gmail.com/">认</a>需工链 <a href="https://redhat.atlassian.net/browse/RHEL-171401">ticket</a>。</p>
+                    <p>Neal Gompa <a href="https://lwn.net/ml/all/CAEg-Je9LjMjRO_rN9YX8Tu5M5rbFTHL1W8Zt6d7noe3PuBP-cA@mail.gmail.com/">说</a>普赞成但欲 Btrfs/ext4/XFS。Timothée Ravier <a href="https://lwn.net/ml/all/178229786028.3477179.6454685438783429643@mailman01.rdu3.fedoraproject.org/">答</a>加文件系统悖目标。Gompa 亦说上游探 GRUB 安全特；"With the revived upstream and our patches getting merged at a rapid clip now, I'm very optimistic about the future of the GRUB project." Poettering <a href="https://lwn.net/ml/all/aj0eFYTKXplJ7ZiT@gardel-login/">不热</a>扩文件系统："It's hard enough for the Linux storage people to maintain that as part of the Linux kernel, and now you expect the handful of Grub maintainers to keep up with this in their own codebase?"</p>
+                    <p>Oron Peled <a href="https://lwn.net/ml/all/yBG5igLFTQC5z_tloH2jLw@actcom.co.il/">建议</a>类 nmbl 用中间内核启另一内核。Jędrzejewski-Szmek <a href="https://lwn.net/ml/all/akOP3BPaaMetZrRD@kawka3.in.waw.pl/">指</a>曾论有弊如内核 CVE 流更。</p>
+
+                    <h3>通过</h3>
+                    <p>FESCo Simon de Vlieger <a href="https://forge.fedoraproject.org/fesco/tickets/issues/3626#issuecomment-878130">说</a>难投；虚环境无值但或他景有用。"This stripped down version is at odds though with what I've seen people expect this to turn into (having filesystem drivers, that sort of stuff)." 弱 +1。Ravier <a href="https://forge.fedoraproject.org/fesco/tickets/issues/3626#issuecomment-1058322">说</a>戴多帽，CoreOS/RHEL 用，但 FESCo 视角 "I don't think this change brings a lot of value to Fedora and we should focus on using systemd-boot instead"。终 +1 因附加不阻未来。</p>
+                    <p>终无热情但无反对，五赞成零反对。新包应现 Fedora 45。</p>
+                </div>
+            </div>
+
+            <!-- 文章 7 -->
+            <div class="article" id="article7">
+                <div class="article-header">
+                    <span class="article-category">内核 / Rust · 工具链</span>
+                    <h2>用 gccrs 编译 Linux 内核的进展</h2>
+                    <div class="article-meta">
+                        <span>作者：Arshal Aromal（贡献）</span>
+                        <span>发布日期：2026年7月28日</span>
+                        <span><a href="https://lwn.net/Articles/1083202/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p><a href="https://rust-gcc.github.io/"><code>gccrs</code> 项目</a>为 GCC 创建 Rust 前端，2026 上半年聚焦编译 Linux 内核。借测内核 crates，团队近正确码。据 <a href="https://github.com/Rust-GCC/Reporting/tree/main/2026">周报</a>与 <a href="https://rust-gcc.github.io/#status-reports">月报</a>，揭解属性处理（<a href="https://rust-gcc.github.io/2026/03/10/2026-02-monthly-report.html">二月报</a>）、名解析、资源管理（<a href="https://rust-gcc.github.io/2026/06/02/2026-05-monthly-report.html">五月报</a>）问题。现仅处独立程序，数月可变。</p>
+                    <p>驱因：内核引入 Rust 需新工具链。现须 LLVM <code>rustc</code>（实验 <a href="https://github.com/rust-lang/rustc_codegen_gcc#wip-libgccjit-codegen-backend-for-rust">rust_codegen_gcc</a>）。GCC 版支持非 LLVM 架构及插件生态。</p>
+
+                    <h3>重组里程碑</h3>
+                    <p><a href="https://rust-gcc.github.io/2026/04/13/2026-03-monthly-report.html">三月报</a>改三能力里程碑：一 "embedded Rust compiler" 编 <a href="https://docs.rust-embedded.org/book/intro/no-std.html">no_std</a> 依赖 <a href="https://rust.docs.kernel.org/core/index.html">core</a>；二 "Rust for Linux compiler" 支持 <a href="https://rust.docs.kernel.org/kernel/alloc/index.html">alloc</a> 及内核 crates；三 "general purpose compiler"。</p>
+                    <p>一近完。三月加 <code>compiler_builtins</code>、修 <code>ffi</code> crate。Zhi Heng 五月 <a href="https://opensrcsec.com/">Open Source Security</a> 实习修 bug 建 CI。</p>
+                    <p>但需正确码。<code>Drop</code> 语义关键。</p>
+
+                    <h3>Drop 基础设施</h3>
+                    <p>Rust 用 RAII。值出域编译器插 <a href="https://doc.rust-lang.org/std/ops/trait.Drop.html">Drop</a> 调。变量初始化态随控制流变，需动态 drop flags。<code>gccrs</code> 缺 <code>Drop</code> elaboration。内核中漏 <code>Drop</code> 致锁不释等。GSoC Janet Chien 五月建 <code>Drop</code> 基础设施。</p>
+
+                    <h3>名解析工作</h3>
+                    <p>测标准库揭名解析 bug。Rust 有三四命名空间：value/macro/type/lifetime。原 <code>gccrs</code> 在目标类型命名空间解路径错，因模块在 type 命名空间。五月改数据结构访客，深嵌套 <code>core</code> 导入解。</p>
+
+                    <h3>元数据与属性处理</h3>
+                    <p>二月 Pierre-Emmanuel Patry 重做属性管线，分 <a href="https://gcc.gnu.org/git/?p=gcc.git%3Ba%3Dcommit%3Bh%3D49aae3a1ae302dd979c503db8dee56c8c378838b">cfg</a> 两遍。三月加 <code>-frust-crate-attr</code> 等 <code>-Zcrate-attr</code> 注 <code>#![no_core]</code>。链内核 crates 揭元数据漏嵌套模块，改元数据系统。</p>
+
+                    <h3>当前能力与上游化的挑战</h3>
+                    <p>今成 <code>no_core</code> 独立程、近 <code>core</code> crate。全编内核抽象进行中。上游合补丁难，但两 dev 升 GCC maintainers 可暂存树推。</p>
+
+                    <h3>下一步</h3>
+                    <p>GSoC Enes Çevik 五月实 <a href="https://doc.rust-lang.org/alloc/">alloc</a>。内核转自 <code>alloc</code> 模块，故标准 <code>alloc</code> 非严需。Patry 与 Arthur Cohen 将 <a href="https://rustconf.com/">RustConf</a> 与 <a href="https://eurorust.eu/">EuroRust</a> 讲。</p>
+                    <div class="info-box note">
+                        <p><strong>更正</strong>：关于 <code>alloc</code> 与 <code>compiler_builtins</code> 状态已更正。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 本周引述 -->
+            <div class="article" id="quotes">
+                <div class="article-header">
+                    <span class="article-category">社区 / 引述</span>
+                    <h2>💬 本周引述（Quotes of the week）</h2>
+                    <div class="article-meta">
+                        <span>编辑：Daroc Alden</span>
+                        <span><a href="https://lwn.net/Articles/1085908/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <blockquote>
+                        <p>Patch authors are expected to proactively look into the AI-generated reviews and handle such feedback as any other kind of review: either debate it or address it. In both cases a reply on the mailing list is expected.</p>
+                        <p>Authors are strongly encouraged to run LLM reviews on the posted patches in advance of the actual post. Large series triggering a significant amount of AI-generated feedback will likely get little attention from maintainers and reviewers.</p>
+                        <p>—— Paolo Abeni（网络子系统策略更新）</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>Back when Linux ran on an abacus, I added __GFP_NOFAIL because four or five sites (file systems) were infinitely looping on alloc_pages until it succeeded. I figured we should move this operation into the page allocator so we could easily find those sites and fix them to Not Do That.</p>
+                        <p>I made it very clear (changelog and code comments) that no new code should use __GFP_NOFAIL. How did that work out?</p>
+                        <pre><code>hp2:/usr/src/linux-7.2-rc4> grep -r __GFP_NOFAIL | wc -l
+241</code></pre>
+                        <p>So much lameness!</p>
+                        <p>—— Andrew Morton</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>I'll also be up front about the fact that this patchset is based entirely on LLM predicted code. I review it all and correct any errors, issues, concerns, etc immediately as each new hunk of code is predicted by the LLM to prevent errors from compounding and multiplying. Thus the code ends up the way I'd write it manually, not the way an unchecked LLM would vibe code it. Mistakes in the code are mine, not a result of an LLM being used to predict the code I'd write faster than I can write it myself.</p>
+                        <p>—— Dave Chinner</p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for July 30, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1084317/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全</h3>
+                    <h3>本周安全引述</h3>
+                    <blockquote>
+                        <p>Again, discernment is <em>everything</em> when it comes to getting useful work out of a chatbot. If you don't know anything about my work and you ask a chatbot to explain it to you, you will likely be badly misled. If you are familiar with my work and you ask a chatbot for the best examples where I explain a given subject, you may get a good answer, and if you get a bad one, you'll know it.</p>
+                        <p>—— Cory Doctorow</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>As a researcher I've also been spending a lot of time with models, talking through various ideas. I don't think I will surprise anyone when I say that they're obviously getting better, even over the course of the past few months. While I don't have Mythos and $100k to spend, I <em>have</em> been able to query at least one new advanced unreleased model, and I also have received some surprising new "results" to questions that I've been interested in for a few years.</p>
+                        <p>Which brings me to the real problem: just because a model spits out an apparent new result, this <em>does not mean the result is real</em>. Even if models are good at producing real results, they're much better at producing results that <em>look</em> real but are misleading. This can be enormously frustrating, and often means that human attention is more necessary than ever.</p>
+                        <p>—— Matthew Green（评论 Anthropic 近期发布的<a href="https://www.anthropic.com/research/discovering-cryptographic-weaknesses">密码学结果</a>）</p>
+                    </blockquote>
+
+                    <h3>内核开发</h3>
+                    <h3>内核发布状态</h3>
+                    <p>当前开发内核是 <strong>7.2-rc5</strong>，于 7 月 26 日发布。Linus 说："So it's a bit too big for my liking, but nothing in there strikes me as particularly strange or scary"。</p>
+                    <p>本次发布已包含来自 2,452 位开发者的 15,256 个非合并变更集，其中 526 位是首次内核贡献者。发布历史如下：</p>
+                    <table>
+                        <thead>
+                            <tr><th>RC 版本</th><th>日期</th><th>提交数</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>v7.2-rc1</td><td>2026-06-28</td><td>14,395</td></tr>
+                            <tr><td>v7.2-rc2</td><td>2026-07-05</td><td>433</td></tr>
+                            <tr><td>v7.2-rc3</td><td>2026-07-12</td><td>475</td></tr>
+                            <tr><td>v7.2-rc4</td><td>2026-07-19</td><td>557</td></tr>
+                            <tr><td>v7.2-rc5</td><td>2026-07-26</td><td>611</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>稳定版更新</strong>：大型更新 7.1.5、6.18.40、6.12.97、6.6.145、6.1.178、5.15.212 和 5.10.261 已于 7 月 24 日发布。单修复的 6.12.98 于 7 月 25 日发布；6.12.99、6.6.146 和 6.1.179（同样为单一回归修复）于 7 月 29 日跟进。</p>
+
+                    <h3>悼念 Dan Williams</h3>
+                    <p>LWN 编辑写道：刚刚收到震惊的消息，长期、高知名度的内核开发者 Dan Williams 已经离世。我主要通过他长期在 Linux Foundation 技术顾问委员会（TAB）的服务认识他；他一直是一位坚定、深思熟虑且睿智的存在。Dan 将被深深怀念。</p>
+                    <p>已有为 Dan 家人提供帮助的<a href="https://www.mealtrain.com/trains/mekrzl">支持行动</a>。</p>
+                    <p>7 月 21 日，内核社区失去了 Dan Williams——最受爱戴的贡献者之一。Dave Hansen 和 Thomas Gleixner 都与 Williams 密切合作过，他们撰写了讣告并授权 LWN 发表。<a href="https://lwn.net/Articles/1085021/">全文在此</a>。</p>
+
+                    <h3>本周引述（内核）</h3>
+                    <blockquote>
+                        <p>Patch authors are expected to proactively look into the AI-generated reviews and handle such feedback as any other kind of review: either debate it or address it. In both cases a reply on the mailing list is expected.</p>
+                        <p>Authors are strongly encouraged to run LLM reviews on the posted patches in advance of the actual post. Large series triggering a significant amount of AI-generated feedback will likely get little attention from maintainers and reviewers.</p>
+                        <p>—— Paolo Abeni（网络子系统策略更新）</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>Back when Linux ran on an abacus, I added __GFP_NOFAIL because four or five sites (file systems) were infinitely looping on alloc_pages until it succeeded. I figured we should move this operation into the page allocator so we could easily find those sites and fix them to Not Do That.</p>
+                        <p>I made it very clear (changelog and code comments) that no new code should use __GFP_NOFAIL. How did that work out?</p>
+                        <pre><code>hp2:/usr/src/linux-7.2-rc4> grep -r __GFP_NOFAIL | wc -l
+241</code></pre>
+                        <p>So much lameness!</p>
+                        <p>—— Andrew Morton</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>I'll also be up front about the fact that this patchset is based entirely on LLM predicted code. I review it all and correct any errors, issues, concerns, etc immediately as each new hunk of code is predicted by the LLM to prevent errors from compounding and multiplying. Thus the code ends up the way I'd write it manually, not the way an unchecked LLM would vibe code it. Mistakes in the code are mine, not a result of an LLM being used to predict the code I'd write faster than I can write it myself.</p>
+                        <p>—— Dave Chinner</p>
+                    </blockquote>
+
+                    <h3>发行版</h3>
+                    <h3>Debian 关于 LLM 使用的一般决议</h3>
+                    <p>Debian 项目正在考虑一项关于在发行版制作中使用大语言模型（LLM）的<a href="https://www.debian.org/vote/2026/vote_002">一般决议（general resolution）</a>。有三个备选方案：全面禁止 LLM 使用、在可行范围内拒绝 LLM、或在满足一组条件的前提下明确允许 LLM 使用。讨论期刚刚开始；投票期开始时间尚未确定。希望提前了解讨论者可在<a href="https://lwn.net/ml/all/til24c.3ns3jl2mkmzmn@riseup.net">此处</a>查阅。</p>
+
+                    <h3>De Vlieger：Fedora 45 的"香肠工厂"</h3>
+                    <p>Fedora 贡献者 Simon de Vlieger 发表<a href="https://supakeen.com/weblog/the-fedora-45-sausage-factory/">博文</a>，逐步讲解项目如何将源代码与包转化为用户最终安装的发布：</p>
+                    <blockquote>
+                        <p>It follows the a package from a packager's git push to a composed release: ISOs, cloud images, container images, and OSTree deployments.</p>
+                        <p>该教程描述了截至 Fedora 45 的 "香肠" 是怎么制作的，东西总在变；我希望每个发布周期或每隔几个发布周期更新这篇文档，这样既有历史记录，大家也能找到最新信息。</p>
+                    </blockquote>
+
+                    <h3>本周发行版引述</h3>
+                    <blockquote>
+                        <p>I have never been known to endorse performance art, sarcasm, or ironic communication that makes a point. I only approve of proposals and specifications that are sincere and well-meaning, like <a href="https://www.rfc-editor.org/info/rfc3514/">RFC 3514</a> or <a href="https://datatracker.ietf.org/doc/html/rfc2324">RFC 2324</a>.</p>
+                        <p>—— Christine Lemmer-Webber</p>
+                    </blockquote>
+
+                    <h3>开发</h3>
+                    <h3>Codeberg：保护我们的 FLOSS 公地免受 LLM 侵害</h3>
+                    <p>Codeberg 代码托管平台采取了一对新政策：承诺不使用托管的开源项目训练 LLM，更具争议的是禁止托管 LLM 生成的软件。站点博客<a href="https://blog.codeberg.org/protecting-our-floss-commons-from-llms.html">描述并论证</a>了这些政策：</p>
+                    <blockquote>
+                        <p>Although often well intentioned, sharing the result of a prompt and calling it "libre software" does not make the world a better place. Codeberg is not and does not want to be a place to dump such generated single-use software that no one else will ever look at. We are a place for people to collaborate and improve software together. Within this context, the recent votes can be understood as a reconfirmation of those principles: As we want to center on human collaboration, we will not actively support or engage in the creation of LLMs and will not put our limited resources to use for storing single-use software that would pollute our FLOSS commons.</p>
+                    </blockquote>
+
+                    <h3>GCC 指导委员会发布 AI 政策</h3>
+                    <p>GCC 指导委员会<a href="https://lwn.net/ml/all/CAGWvny=KZcazorvmCU3gdT4dBcMJm6S_769Ne+aTfbO_nZ_HsQ@mail.gmail.com/">宣布</a>已接受由 GCC AI 政策工作组推荐的<a href="https://forge.sourceware.org/redi/gcc-wwwdocs/commit/4d0793a6a14bf9bfe9e92ac1599840780355199d">AI 贡献政策</a>。</p>
+                    <p>该政策部分规定，项目将拒绝任何 "包含 LLM 生成内容或衍生自 LLM 生成内容的法律意义重大的贡献（legally significant contributions）"。它采用了 GNU 项目维护者指南中对 "legally significant" 的<a href="https://www.gnu.org/prep/maintain/maintain.html#Legally-Significant">定义</a>，其中将门槛定为 "约 15 行代码和/或文本" 才构成版权意义上的重大。不过，GCC 维护者可以选择接受由 LLM 生成的、具有法律意义的测试用例。</p>
+                    <p>该政策不禁止将 LLM 用于研究、分析、缺陷发现与报告、补丁审查等，只要输出不被纳入贡献。委员会表示期望该政策会演进并定期重新审视。</p>
+
+                    <h3>GNU Binutils 2.47 发布</h3>
+                    <p><a href="https://www.gnu.org/software/binutils/">GNU Binutils</a> 的 <a href="https://inbox.sourceware.org/binutils/87o6fty5pz.fsf@redhat.com/">2.47 版</a>已发布。除常规 bug 修复外，此版本还有一些显著新特性，包括增加了对若干 RISC-V 标准扩展的支持、可在 AArch64 上为未定义指令显示符号的命令行选项（<code>-M annotate</code>）等。32 位 s390 目标在此版本中被弃用。</p>
+
+                    <h3>GNU C Library 2.44 发布</h3>
+                    <p>GNU C Library 的 <a href="https://lwn.net/ml/all/teaVXxrfQH2qv0xBul7sXg@gentoo.org">2.44 版</a>已发布。变更包括一个新的 <code>/etc/tunables.conf</code> 文件用于系统级可调参数设置、一个控制只读可执行段使用透明大页的可调参数、若干数学函数改进、若干安全修复等。</p>
+
+                    <h3>Home Assistant 设备数据库公开预览</h3>
+                    <p>管理 <a href="https://www.home-assistant.io/">Home Assistant</a> 家庭自动化项目的 <a href="https://www.openhomefoundation.org/">Open Home Foundation</a> <a href="https://www.openhomefoundation.org/blog/building-the-device-database-together/">宣布</a>其<a href="https://device-database-preview.openhomefoundation.org/">设备数据库</a>的 "公开预览"：</p>
+                    <blockquote>
+                        <p>提供一个公开、开放的方式来浏览我们收集的匿名、聚合设备数据，始终是计划的一部分，这个预览是我们迈出的第一步。</p>
+                        <p>你已经可以用它搜索和筛选设备，查看聚合的社区洞察，从一组刻意聚焦的细节开始，例如某设备是否需要联网、它支持哪些协议与集成。我们有意将初始范围保持狭窄，为我们与你——我们的社区——一同可在其上构建的坚实基础。</p>
+                    </blockquote>
+                    <p>LWN 曾在 2025 年 5 月<a href="https://lwn.net/Articles/1017945/">介绍过</a> Home Assistant。</p>
+
+                    <h3>Wayfire 0.11 发布</h3>
+                    <p>基于 <a href="https://gitlab.freedesktop.org/wlroots/wlroots#wlroots">wlroots</a> 的 Wayland 合成器 <a href="https://wayfire.org/">Wayfire</a> 的 <a href="https://wayfire.org/2026/07/24/Wayfire-0-11.html">0.11 版</a>已发布。值得注意的变更包括更好的分数缩放、每输出的 <a href="https://en.wikipedia.org/wiki/ICC_profile">ICC 配置文件</a>支持、对额外 Wayland 协议的支持等。</p>
+
+                    <h3>杂项</h3>
+                    <h3>Linux Plumbers Conference 2026 注册开放</h3>
+                    <p><a href="https://lpc.events/event/20/page/267-attend">注册已开放</a>，2026 Linux Plumbers Conference 将于 10 月 5 日至 7 日在捷克布拉格举行。门票往往很快售罄，有意参加者恐怕不宜拖延。</p>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for July 30, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1084318/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：ci.debian.net 维护者通讯（7 月 23 日）、Debian Misc Developer News（7 月 27 日）、DistroWatch Weekly（7 月 27 日）、This week in F-Droid（7 月 24 日）、This week in Fedora（7 月 27 日）、FreeBSD Quarterly Status Report（第二季度）、openSUSE Tumbleweed Review of the Week（7 月 24 日）、Ubuntu Weekly News（7 月 20 日）。</p>
+                    <p><strong>开发</strong>：Emacs News（7 月 27 日）、What's cooking in git.git（7 月 22 日、24 日、26 日、29 日四期）、This Week in GNOME（7 月 24 日）、GNU Tools Weekly News（7 月 26 日）、Golang Weekly（7 月 24 日）、Last Week in Kubernetes Development（7 月 23 日）、LLVM Weekly（7 月 27 日）、This Week in Matrix（7 月 24 日）、OCaml Weekly News（7 月 28 日）、OpenPrinting News（7 月 20 日）、Perl Weekly（7 月 27 日）、This Week in Plasma（7 月 25 日）、PyCoder's Weekly（7 月 28 日）、Weekly Rakudo News（7 月 27 日）、Ruby Weekly News（7 月 23 日）、This Week in Rust（7 月 22 日）、Wikimedia Tech News（7 月 27 日）。</p>
+                    <p><strong>会议记录</strong>：Fedora FESCo meeting minutes（7 月 21 日、28 日两期）、This week in the Perl Steering Committee（7 月 23 日）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>7 月 31 日</td><td>10 月 14–17 日</td><td>PyCon South Africa</td><td>开普敦，南非</td></tr>
+                            <tr><td>7 月 31 日</td><td>10 月 1–2 日</td><td>embedded Linux for Safe and Secure Applications</td><td>哥廷根，德国</td></tr>
+                            <tr><td>7 月 31 日</td><td>9 月 25–27 日</td><td>PostmarketOS and Alpine Linux Conference</td><td>亚琛，德国</td></tr>
+                            <tr><td>8 月 1 日</td><td>9 月 28 日–10 月 1 日</td><td>Alpine Linux Persistence and Storage Summit</td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>8 月 1 日</td><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 11 日</td><td>10 月 6 日</td><td>Yocto Project Developer Day 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 2–4 日</td><td>GNU Tools Cauldron</td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 3–4 日</td><td>Linux Days 2026</td><td>布拉格，捷克</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 6–9 日</td><td>FOSSY 2026</td><td>温哥华，加拿大</td></tr>
+                            <tr><td>8 月 8–9 日</td><td>UbuCon Asia 2026 @ COSCUP</td><td>台北，中国台湾</td></tr>
+                            <tr><td>8 月 11–12 日</td><td>Open Source Summit Korea</td><td>首尔，韩国</td></tr>
+                            <tr><td>8 月 14–16 日</td><td>Hackers on Planet Earth</td><td>纽约，美国</td></tr>
+                            <tr><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 30 日–9 月 5 日</td><td>FOSS4G Hiroshima 2026</td><td>广岛，日本</td></tr>
+                            <tr><td>9 月 17–18 日</td><td>Git Merge</td><td>里斯本，葡萄牙</td></tr>
+                            <tr><td>9 月 19–20 日</td><td>Nextcloud Community Conference 2026</td><td>柏林，德国</td></tr>
+                            <tr><td>9 月 21–23 日</td><td>Kernel Recipes</td><td>巴黎，法国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td>Reproducible Builds Summit</td><td>哥德堡，瑞典</td></tr>
+                            <tr><td>9 月 25–27 日</td><td>PostmarketOS and Alpine Linux Conference</td><td>亚琛，德国</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>本期涵盖了 7 月 23 日至 7 月 29 日期间各发行版发布的大量安全公告，涉及 AlmaLinux、Debian（含 stable 与 LTS）、Fedora、Mageia、Oracle、Red Hat、Slackware、SUSE 以及 Ubuntu。受影响软件包包括：acl、kernel（多个版本系列）、glibc、dovecot、java（openjdk 多种版本）、httpd、grafana、libpq、libreswan、libtiff、mariadb-connector-c、perl-HTTP-Daemon、sssd、bind9、chromium、exim4、firefox-esr、hplip、imagemagick、libraw、linux-6.1、openjdk、pdns-recursor、samba、spice-vdagent、webkit2gtk、libarchive、samba、seamonkey、apache、cifs-utils、dnsmasq、giflib、graphite2、libevent、libnfs、libslirp、libyang、lrzip、memcached、nginx、socat、sqlite3、transmission、vorbis-tools、wget、yelp、.NET 系列、389-ds-base、cups、docker、git-lfs、golang、gstreamer 插件、hplip、nginx、nodejs、openssl、perl-DBI、php、podman、postgresql、python、rsync、tomcat、unbound、vim、xorg-x11-server、yggdrasil 等。完整条目见 <a href="https://lwn.net/Articles/1086032/">LWN 安全公告摘要</a>。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（7 月 22 日–7 月 29 日）内核相关补丁精选包括：</p>
+                    <ul>
+                        <li><strong>内核发布</strong>：Linux 7.2-rc5（Linus Torvalds，7 月 26 日）、Linux 7.1.5 / 6.18.40 / 6.12.99 / 6.12.98 / 6.12.97 / 6.6.146 / 6.6.145 / 6.1.179 / 6.1.178 / 5.15.212 / 5.10.261（7 月 24–29 日）、5.10.261-rt157（Luis Claudio R. Goncalves，7 月 29 日）。</li>
+                        <li><strong>架构相关</strong>：为所有架构添加共享系统调用表、arm64 的 BBML3 cpu 特性与 FEAT_NMI、arm64 crash hotplug、arm64 128 位页表项、LoongArch livepatch（KLP）支持、bpf/mips 有符号除模支持、bpf/riscv 定时 may_goto、s390/bpf load-acquire/store-release、s390 kCFI 支持、s390 vfio-ap 实时迁移等。</li>
+                        <li><strong>构建系统</strong>：新增 kconfirm。</li>
+                        <li><strong>核心内核</strong>：tracing wprobe x86 watchpoint、cache aware scheduling、生成 kfunc 的 bpf_func_proto、kho 保留高阶非复合页、sched steal_governor 偏好 CPU、sched_ext NMI 安全退出处理、sched_ext 与 proxy execution 兼容、kfunc/struct_ops 的 arena 参数支持、rust WaitQueue 基础设施、futex 运行时常量、workqueue 的 BPF 迭代器、io_uring 的 dmabuf 读写、rcu/srcu 任意上下文安全 call_rcu()/call_srcu() 等。</li>
+                        <li><strong>开发工具</strong>：TDX KVM selftests、rv selftests 与 KUnit、page alloc hogger、KVM selftests、arm64 kselftests、anon mTHP collapse 测试、PACKET_IGNORE_OUTGOING selftest、vfio IGB 驱动 selftest 等。</li>
+                        <li><strong>设备驱动</strong>：涉及 it6505 DP 音频、AD9910 DDS、Exynos DSIM 桥、rtl8723b/bs 无线、Exynos9610 时钟、DW HDMI QP TX、QMP PCIe 多链路模式 PHY、ITE IT6625/IT6626 HDMI 转 MIPI CSI-2 桥、Realtek RTD1625 GPIO、Nebulamatrix NIC、Altera SoC FPGA 硬件监控、MA35D1 看门狗、MAX40080 电流检测、i.MX OCOTP ELE、MediaTek T9XX WWAN、dw-edma 动态 LL 追加、TH1520 USB PHY、Cix Sky1 AUDSS 时钟与复位、Native SCSI Multipath、Allwinner A733 SoC 时钟、Qualcomm Iris 多切片、cadence-quadspi PHY 调谐、SPAcc 加密驱动、MANA IB UC QP、Xilinx XXV 以太网、Microchip MCP47FEB02、airoha GDM3/GDM4 WAN/LAN 配置、ath12k 设备 DP 统计、AIC8800 SDIO FullMAC、Invensense ICM42607、QLA29xx 适配器、Renesas RZ/G3L SD/eMMC、Qualcomm 音频时钟控制器、arm_mpam MPAM-Fb 固件支持、libksnet-devel、s390-tools、libssh、libxml2、mariadb-connector-c、mcphost、net-tools、nginx、nmap、nodejs24、ntfs-3g、openexr、openssl、perl-DBI、perl、php8、python 系列（Pillow/aiohttp/cryptography/maturin/msgpack/pyasn1/soupsieve/sqlparse/tornado/urllib3）、qemu、runc、samba、sssd、systemd、tiff、tomcat、vim、vorbis-tools、webkit2gtk3、wget、wireshark、wpa_supplicant、xwayland、yelp、yq 等大量新硬件支持与改进（注：设备驱动章节原文在网页端被截断）。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1084315/" target="_blank">LWN.net Weekly Edition for July 30, 2026</a></p>
+            <p>更新时间：2026年8月7日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
