@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年8月6日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年8月6日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">进程构建 API 的雏形（process-builder API）</a></li>
+                    <li><a href="#article2">Fedora 考虑引入利益冲突（COI）政策</a></li>
+                    <li><a href="#article3">FUSE io_uring 的缓冲区大小（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article4">用 BPF 检视其他网络命名空间（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article5">FUSE 现状与计划（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article6">BPF 中库的未来（LSFMM+BPF 峰会）</a></li>
+                    <li><a href="#article7">重新审视 O_CREAT|O_DIRECTORY</a></li>
+                    <li><a href="#quotes">💬 本周引述</a></li>
+                    <li><a href="#briefs">📝 简讯</a></li>
+                    <li><a href="#announcements">📢 公告</a></li>
+                </ul>
+            </div>
+
+            <!-- 文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">内核 / 进程管理</span>
+                    <h2>进程构建 API 的雏形</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年8月4日</span>
+                        <span><a href="https://lwn.net/Articles/1086330/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>近期关于 "spawn templates"（生成模板）的<a href="https://lwn.net/Articles/1076018/">讨论</a>提出了一个疑问：是否时机已到，应该提供一种替代经典 Unix <code>fork()</code>/<code>exec()</code> 进程创建模式的接口。其中浮现的一个想法是将模板模式转向一种接口，可用于从零开始高效地组装新进程，而不必复制父进程。理想情况下，该接口还应能实现 <code>posix_spawn()</code>。Li Chen（spawn-template 工作的作者）现已以<a href="https://lwn.net/ml/all/cover.1784204592.git.me@linux.beauty">一个补丁系列</a>（在大量 LLM 辅助下编写）作为回应，展示了 Linux 的 process-builder API 可能是什么样子。</p>
+
+                    <p>在 Unix 模型中，调用 <code>fork()</code>（在 Linux 上最终是 <code>clone()</code> 的某种变体）会创建调用进程的副本，这涉及相当多的工作。子进程随后通常会以所需方式修改其环境——例如打开或关闭文件——然后调用 <code>execve()</code> 运行新程序。后一个调用最终丢弃了为复制父进程所做的大部分工作，这并不完全高效。如果意图是立即运行不同的程序，更好的模型或许是：从一开始就拼装新进程，而不卷入（大部分）父进程状态。</p>
+
+                    <h3>进程创建</h3>
+                    <p>在 Chen 的补丁系列中，实现方式是首先通过现有的 <code>pidfd_open()</code> 系统调用创建一个空进程：</p>
+                    <pre><code>new_process_fd = pidfd_open(0, PIDFD_EMPTY);</code></pre>
+                    <p>新的 <code>PIDFD_EMPTY</code> 标志请求创建一个进程壳（process shell），其细节将在以后填充。返回的是真正的 pidfd，但大多数与进程相关的资源尚不存在：没有进程 ID、内核中没有 task 结构、也不计入父进程的进程数资源限制。在此阶段，大多数作用于 pidfd 的内核操作都会拒绝对此 pidfd 执行任何动作。</p>
+                    <p>下一步是整理驱动新进程构建的信息；这项工作围绕如下结构展开：</p>
+                    <pre><code>struct pidfd_spawn_run_args {
+    __u32 flags;
+    __u32 nr_actions;
+    __aligned_u64 path;
+    __aligned_u64 argv;
+    __aligned_u64 envp;
+    __aligned_u64 actions;
+    __u32 action_size;
+    __u32 reserved0;
+    __u64 reserved[2];
+};</code></pre>
+                    <p><code>path</code> 字段是指向字符串的指针，包含新进程应运行的可执行文件路径；如下所述，在某些情况下它可为 <code>NULL</code>。<code>argv</code> 和 <code>envp</code> 指向常规的 argument 与 environment 数组。<code>flags</code> 字段必须为零，reserved 字段也必须为零。填写这些字段（其余稍后介绍）就提供了通过两个新系统调用中的第一个来构建并运行进程的充分信息：</p>
+                    <pre><code>int pidfd_spawn_run(int pidfd, struct pidfd_spawn_run_args *args, int arg_size);</code></pre>
+                    <p>此处 <code>pidfd</code> 是正在构建中的进程的 pidfd，<code>args</code> 是指向上述结构的指针，<code>arg_size</code> 是该结构的大小。若一切顺利，此调用将创建完整进程并以其指示的程序运行；返回值是现在已完全填充的进程的 ID。原始 pidfd 保持有效并附加到该进程。如果发生某种错误，进程壳将留在某种死亡状态，任何进一步操作它的尝试都将失败。</p>
+
+                    <h3>配置</h3>
+                    <p>提供可执行映像、参数和环境通常只是配置新进程的开始；典型应用还会希望设置进程的文件描述符，并可能调整许多其他内容。这正是 <code>pidfd_spawn_run_args</code> 结构的 <code>actions</code> 字段的用途。它指向此结构类型的数组：</p>
+                    <pre><code>struct pidfd_spawn_action {
+    __u32 type;
+    __u32 flags;
+    __u32 fd;
+    __u32 newfd;
+    __u64 reserved[2];
+};</code></pre>
+                    <p><code>type</code> 字段描述在进程被实例化并启动前应执行的操作。此补丁集中目前定义（最终所需操作的很小子集）的操作有：</p>
+                    <ul>
+                        <li><strong>PIDFD_SPAWN_ACTION_DUP2</strong>：使用 <code>dup2()</code> 复制现有文件描述符。现有文件描述符应在 <code>fd</code> 字段传递，预期的新描述符在 <code>newfd</code>。</li>
+                        <li><strong>PIDFD_SPAWN_ACTION_CLOSE_RANGE</strong>：关闭 <code>fd</code> 和 <code>newfd</code> 之间（含）的文件描述符范围。</li>
+                        <li><strong>PIDFD_SPAWN_ACTION_FCHDIR</strong>：将新进程的工作目录更改为 <code>fd</code> 标识的目录。</li>
+                    </ul>
+                    <p><code>PIDFD_SPAWN_ACTION_CLOSE_RANGE</code> 允许 <code>close_range()</code> 系统调用支持的 <code>CLOSE_RANGE_CLOEXEC</code> 与 <code>CLOSE_RANGE_UNSHARE</code> 标志；其他两个操作的 <code>flags</code> 必须为零。<code>pidfd_spawn_run_args</code> 结构中的 <code>nr_actions</code> 字段指示存在多少操作，而 <code>action_size</code> 是 <code>pidfd_spawn_action</code> 结构的大小。这些操作将在定位可执行映像之前执行，意味着更改工作目录会影响相对路径如何被解析。</p>
+                    <p>如果任何操作在 <code>pidfd_spawn_run()</code> 时失败，整个系统调用将失败，新进程不会启动。</p>
+                    <p>第二个新系统调用是新进程某些方面的替代配置接口：</p>
+                    <pre><code>int pidfd_config(int pidfd, unsigned int cmd, char *ukey, char *value, int aux);</code></pre>
+                    <p>此系统调用旨在超越 spawn 功能而有用；但在本补丁集中，它只能做一件事。使用 <code>cmd</code> 为 <code>PIDFD_CONFIG_SET_STRING</code>，可将基于字符串的参数设置给给定 <code>value</code>。此集中唯一的此类参数是 <code>PIDFD_CONFIG_KEY_PATH</code>，它设置要运行的可执行文件路径。如果传递给 <code>pidfd_spawn_run()</code> 的 <code>path</code> 指针将为 <code>NULL</code>，则必须调用此调用。如果向该系统调用传递了非 <code>NULL</code> 路径，它将覆盖用 <code>pidfd_config()</code> 配置的 path。</p>
+
+                    <h3>缺失的部分</h3>
+                    <p>此系列旨在作为概念验证，帮助社区决定整体方向是否合理，因此它没有实现最终所需的大部分内容。如上所述，可用操作集比最终需要的要小得多。为实现 <code>posix_spawn()</code>，内核必须支持定义信号处理、控制调度器参数、打开文件等操作。在很大程度上，一旦所需接口形式确立，这些只是编程问题。</p>
+                    <p>另一个大缺口是 <code>pidfd_spawn_run()</code> 实际上并不是从零创建新进程；相反，内部实现基于 <code>vfork()</code>。理论上，一旦 API 达成一致，可以透明地替换实现，用户空间唯一可见的变化是更好的性能。实践中，这可能不是个小工作。内核只从零创建两个特殊用途进程（<code>init</code> 和 <code>kthreadd</code>）；用于一般情况的相关机制并不存在。这也只是编程问题——或许相当多。</p>
+                    <p>不过首先，API 必须达成一致。该系列于 7 月 16 日发布，但截至本文撰写仅获得一条 review 评论。在考虑更完整的实现之前，它需要吸引更多目光。多年来许多人一直在要求这类进程创建接口；现在正是他们查看该提案是否接近其想法的时候。</p>
+                </div>
+            </div>
+
+            <!-- 文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">发行版 / Fedora · 治理</span>
+                    <h2>Fedora 考虑引入利益冲突（COI）政策</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年8月4日</span>
+                        <span><a href="https://lwn.net/Articles/1086488/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p><a href="https://docs.fedoraproject.org/en-US/council/">Fedora Council</a> 正在<a href="https://forge.fedoraproject.org/council/tickets/issues/513">考虑</a>为其决策机构制定利益冲突（COI）政策，例如 <a href="https://docs.fedoraproject.org/en-US/fesco/">Fedora Engineering Steering Committee</a>（FESCo）、特殊兴趣组（SIGs），以及向委员会报告并负责对影响 Fedora 项目的决策的任何其他组或个人。不过，当前草案不适用于委员会本身。COI 政策的<a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508">公开讨论</a>于 7 月 23 日开始，似乎接近完成，委员会将在 8 月 13 日的会议上再次讨论该主题。</p>
+
+                    <h3>缘起</h3>
+                    <p>开源项目拥有 COI 政策并不罕见。事实上，对于像 Fedora 这样拥有许多其他明确定义政策的项目却缺乏此类政策，可能看起来有些不寻常。在宣布讨论时，Aoife Moloney 表示，委员会追求 COI 政策的想法源于约 18 个月前"Fedora 中一个治理组做出撤销某人以某种方式贡献项目能力"的决定的余波。</p>
+                    <p>Moloney 含糊提及的决定，是 FESCo 对撤销 Peter Robinson 的 <a href="https://docs.fedoraproject.org/en-US/fesco/Provenpackager_policy/">provenpackager</a> 状态的颇有争议的处置，该状态授予提交 Fedora 中所有包（而不仅是其拥有的包）的能力。FESCo 曾在私人会议中投票剥夺 Robinson 的状态，并采取罕见步骤<a href="https://lwn.net/ml/all/9754faac-60ed-4b05-8bde-4e67ccd284ed@redhat.com/">公开宣布</a>撤销，指控他"继续使用其 provenpackager 特权以未批准方式，频繁给其他维护者造成额外工作"。Fedora Council 后来<a href="https://lwn.net/Articles/1022243/">推翻了该决定</a>并向 Robinson 道歉。</p>
+                    <p>Emmanuel Seyman 于 4 月<a href="https://forge.fedoraproject.org/council/tickets/issues/563#issue-113279">询问</a>委员会提供 FESCo 行动背后的公开说明，以及每位成员如何投票。他指出 FESCo 曾<a href="https://lwn.net/ml/all/CAB-QmhStv4Kgz+fZ71ki6kg1rBSEbZ3mUZQ+8-qBBuXpfwO7-w@mail.gmail.com/">承诺</a>在 2024 年 12 月发布带有私人讨论摘要的公开 ticket：</p>
+                    <blockquote>
+                        <p>自那以后，我们等待被告知将创建的公开 ticket，并且不得不在多次 FESCo 选举中投票，却无当时投票者的完整投票记录，以便我们判断是否需要他们继续留在 FESCo。</p>
+                    </blockquote>
+                    <p>委员会成员 Justin Wheeler <a href="https://forge.fedoraproject.org/council/tickets/issues/563#issuecomment-698529">表示</a>委员会已开会讨论该请求，摘要将在"今天结束前"于 5 月 7 日发布，但直到 6 月 5 日才有更新，当时 Moloney <a href="https://forge.fedoraproject.org/council/tickets/issues/563#issuecomment-817967">说</a>委员会决定不提供额外信息。"对做出这些决定时所依据的隐私初始期望翻悔会显得不真诚，而且我们缺乏必要的背景来形成回顾性意见。"</p>
+                    <p>Wheeler 于 7 月 6 日<a href="https://forge.fedoraproject.org/council/tickets/issues/563#issuecomment-1057898">跟进</a>，再次报告委员会不会提供关于撤销事件的进一步信息，但"承诺改进我们的利益冲突政策，作为防止此类治理问题再次发生的机制"。这正是 Robinson 曾建议的：他在 2024 年 12 月向委员会<a href="https://forge.fedoraproject.org/council/tickets/issues/513">提出请求</a>表示 Fedora 需要 COI 政策。Fedora 项目领导人（FPL）Jef Spaleta 于 2025 年 7 月向委员会<a href="https://forge.fedoraproject.org/council/tickets/issues/513#issuecomment-531150">提供草案政策</a>，但直到现在才分享以进行公开讨论。</p>
+                    <p>由于针对 Robinson 的投诉细节从未公开，目前不清楚 COI 政策本可在改善情况中发挥什么作用。可能是 FESCo 的一名或多名成员启动了程序然后投票反对 Robinson 而不是回避（recuse）——但就目前而言，观察者只能猜测。</p>
+
+                    <h3>草案政策</h3>
+                    <p>该<a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508#p-519000-fedora-conflict-of-interest-policy-this-is-a-draft-1">政策</a>开头免责声明其"使用 NotebookLM 生成，然后经人工编辑控制修订"。政策的主要目标是确保项目做出的所有影响个人参与 Fedora 的决定"被视为公平、公正，并符合 Fedora 项目及其社区的最佳利益"。</p>
+                    <p>政策范围包括"在 Fedora Council 下运作的任何 Fedora 项目组或团队内参与决策过程的所有个人和团体"，列举了非详尽的组、团队等列表，但似乎广泛适用于项目中发生的任何决策，<em>除了</em> 委员会自身的决策。它将利益冲突定义为：个人的利益或其所属组织的利益"可能合理被视为影响或看似影响其代表 Fedora 项目做出客观决策的能力"的任何时候。冲突利益可能是"财务收益、职业晋升、个人关系或对另一组织的忠诚"。</p>
+                    <p>政策提案规定，利益冲突并不自动取消参与讨论或对事项投票的资格。它承认，例如许多 Fedora 贡献者受雇于 Red Hat，可能经常面临可能是利益冲突的情况。</p>
+                    <p>草案要求，如果个人"认为其可能与特定讨论、投票或任务有利益冲突"，则应尽早声明该冲突。草案有点模糊，不幸的是。它规定如果存在 COI，个人应从决策过程中回避（recuse），但也建议可讨论可能的 COI，以便如果决策组认为不取消资格，仍允许参与决策。</p>
+                    <p>委员会将调解或裁决任何关于利益冲突的分歧或争议。政策对如果个人有利益冲突、或决定似乎受利益冲突影响会发生什么持开放态度。补救步骤，它说，"应逐案处理（case-by-case basis）"。</p>
+
+                    <h3>讨论</h3>
+                    <p>Christopher Boni <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/2">指出</a>草案关于回避的语言与其注明冲突不自动取消资格的明显矛盾。FESCo 成员 Fabio Valentini <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/6">回复</a>说，如果假设回避仅适用于"关于先前声明的利益冲突是否取消此人资格或应采取任何补救行动的决定过程"（草案第 6 点），明显矛盾就解决了。不过，他说如果这是意图，应在政策中明确。</p>
+                    <p>FESCo 成员 "Maxwell G" <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/7">说</a>他理解委员会无法将决策上报给自己，"但我认为其余部分也应适用于委员会内部的决策"。Valentini <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/8">同意</a>并建议或许委员会可以"向下上报（escalate 'down'）"到像 FESCo 这样的机构。</p>
+                    <p>讨论中出现的一个担忧是 FESCo 成员可能必须回避投票自己的 <a href="https://docs.fedoraproject.org/en-US/operations/changes_guide/">change proposals</a>。Miro Hrončok <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/3">说</a>已反复同意 FESCo 成员被允许投票支持自己的提案。"为了自身利益而竞选机构也应完全 OK。只要披露，我不认为我们应自动要求弃权（abstentions）。"</p>
+                    <p>大多数人似乎同意 COI 政策是好事，即使草案需要润色。然而，FESCo 成员 Zbigniew Jędrzejewski-Szmek <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/12">主张</a>它不必要。他说 FESCo 移除 Robinson provenpackager 状态的决定并未"以任何强烈方式"受利益冲突影响，COI 政策不会带来不同。</p>
+                    <blockquote>
+                        <p>我看到 Fedora 中各种决策缓慢或出错（事后看来），但那些问题与利益冲突关系不大。我会列举如下原因：缺乏时间调查细节、对范围的误解、对某些技术或方法的偏好、过于宏大的计划、疲倦、缺乏同步等。在某些情况下存在人际好恶或人际间的信任/不信任，但那些[是]不属于拟议政策所要求披露类型的明显关系。</p>
+                    </blockquote>
+                    <p>似乎不太可能合理要求 FESCo 或其他机构成员基于例如对另一贡献者的厌恶而回避决策。</p>
+                    <p>Aleksandra Fedorova <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/15">似乎同意</a>政策无必要。"我们不需要更多政策来声明和管辖显而易见的事。它只是给企业风格官僚作风带入以人为本的项目。"她后来<a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/17">说</a>对于"无法公开进行的决策"如行为准则投诉或其他敏感主题，拥有 COI 政策可能有意义。"如果决策无法在公开中充分讨论和证明，没有简单默认方式获得信任，一些明确的利益冲突考虑会有帮助。"她<a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/13">建议</a>一个更小的政策：</p>
+                    <blockquote>
+                        <p>涉及行为准则问题、以及关乎 Fedora 项目中特定个人访问权限的其他问题之决策，不应由直接参与此类行为的人做出。</p>
+                    </blockquote>
+                    <p>Moloney <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/21">说</a>她赞成将政策范围缩减至需私下做出的决策。Jędrzejewski-Szmek <a href="https://discussion.fedoraproject.org/t/conflict-of-interest-guidelines-policy-draft-feedback-please/197508/22">说</a>他认为 Fedorova 建议的文本很棒。"我们能采纳那一句话并将其加入顶层治理文档然后就此结束吗？"</p>
+                    <p>委员会在 7 月 29 日会议的开放楼层部分<a href="https://meetbot.fedoraproject.org/meeting_matrix_fedoraproject-org/2026-07-29/fedora-council-bi-weekly-meeting.2026-07-29-14.00.html">讨论</a>了该政策。Moloney <a href="https://forge.fedoraproject.org/council/tickets/issues/513#issuecomment-1072559">说</a>委员会决定重拟文档并允许两周更多反馈。它将在 8 月 13 日安排的委员会会议上再次讨论。</p>
+                </div>
+            </div>
+
+            <!-- 文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">内核 / 文件系统 · FUSE</span>
+                    <h2>FUSE io_uring 的缓冲区大小</h2>
+                    <div class="article-meta">
+                        <span>作者：Jake Edge</span>
+                        <span>发布日期：2026年8月3日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1085618/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p><a href="https://docs.kernel.org/filesystems/fuse/">Filesystem in Userspace</a>（FUSE）子系统提供了一种从用户空间服务器服务文件系统请求的方式，将格式处理代码移出内核。FUSE 服务器可以<a href="https://www.kernel.org/doc/html/next/filesystems/fuse-io-uring.html">使用</a> <a href="https://man7.org/linux/man-pages/man7/io_uring.7.html">io_uring</a> 设施获得更好性能，但 Bernd Schubert 担心内存被浪费，因为当前实现具有单一、大型 buffer 大小，对于小 I/O 操作过于庞大。他在 2026 年 <a href="https://events.linuxfoundation.org/lsfmmbpf/">Linux 存储、文件系统、内存管理与 BPF 峰会</a>于克罗地亚萨格勒布的文件系统轨道主持了关于该主题的 discussion。</p>
+                    <p>目前，<a href="https://github.com/libfuse/libfuse#libfuse">libfuse</a> 每个 ring 设置 8 个条目，每个条目默认最大负载大小（8MB），不过也可切换为 4MB，他开始说。通常每个 ring 需要一到两个条目来达到至磁盘（本地或通过网络）的最大吞吐量，但也需处理元数据请求，用于 <code>stat()</code> 或目录列表等操作。"你不想在作这些元数据请求时干扰你的流 I/O"。</p>
+                    <p>那些较小请求可能是 16KB 或 128KB。然而，要用该大小请求饱和 I/O 带宽，需要更大量 buffer。"问题是我们如何做。"现有实现使用带有独立 header 和 payload 结构的条目，但每个具有相同的 payload 大小。</p>
+                    <p>Schubert 指出 Joanne Koong 一直在研究<a href="https://lwn.net/ml/all/20260402162840.2989717-1-joannelkoong@gmail.com/">更改 FUSE io_uring 的 buffer 处理的补丁</a>，将 header 与 payload 分离。每个条目仍有一个 header，但 payload buffer 将共享。条目与 payload 之间不再有一对一映射，且 payload 将以多种大小可用。</p>
+                    <p>Schubert 设想了不同方法，例如四种不同 payload 大小。将有使用 4KB、64KB、128KB 和 1MB payload 大小的条目；4KB 条目有 128 个 buffer 可用，而较大大小只有两个 buffer 可用。他尚未编写实现其想法的代码，但认为可行：基于 I/O 操作大小从单一 ring 选择适当大小条目。</p>
+                    <p>在前一天与 Koong 的讨论中，她说问题可用多个 ring 而非单一 ring 上多种大小解决。每个 ring 有不同 buffer 大小，并有代码基于 I/O 大小选择正确 ring，类似于 Schubert 设想的代码。他的担忧是多个 ring 意味着更多系统调用，因此他偏好单一 ring。用户空间 FUSE 服务器需监控多个 ring 并从每个服务 I/O 操作。</p>
+                    <p>他对多个 ring 的另一个担忧是针对被分区为仅运行 Linux 于少数核心的系统上的应用，这意味着单一核心可能负责轮询多个 ring。"那变得痛苦。"</p>
+                    <p>FUSE 维护者 Miklos Szeredi 问 Schubert 的计划是否需要管理大内存池中的 buffer 分配，但 Schubert 说不需要。那样处理分配会导致碎片，因此他的方法只是静态设置每种大小的多个 buffer；例如当没有更多 4KB buffer 时，请求者将必须等待。有人疑问或许在那种情况下使用更大大小，但他认为那些太宝贵而不能那样用。</p>
+                    <p>Koong 说她担心等待正确大小的可用 buffer 会增加不必要延迟。用她的多 ring 方案，其他 ring 可为请求提供 buffer 而不是等待正确大小的那个。她问："如果你有小请求且有更大 buffer 可用，为何让小请求等待直到有小 buffer 可用？"Schubert 说那种情况下，已有 128 个请求在飞，因此再加一个无实际益处。</p>
+                    <p>他们之间有些来回，Schubert 想避免处理多个 io_uring ring 的用户空间复杂性，而 Koong 寻求最佳利用所有可用 buffer。她说她认为不需要超过两种不同 buffer 大小，一种小用于元数据，一种大用于数据。Schubert 说那没问题，但仍意味着如果不同大小在 Koong 提议的不同 ring 上，需轮询多个 ring。</p>
+                    <p>一名与会者问所见的 io_uring 性能问题，但 Schubert 说不是他要改善性能。他想减少内存使用，因为需要许多元数据请求，但如果它们都必须与 I/O 请求同大小，会浪费大量内存。</p>
+                    <p>Koong 提出 <a href="https://en.wikipedia.org/wiki/Head-of-line_blocking">head-of-line blocking</a> 问题，她说这是多 ring 的优势：一个线程可处理数据 I/O 而另一个处理元数据请求。Schubert 说当前 libfuse 可能仍以同步方式处理请求，可能导致较小 I/O 操作阻塞在较大之后，但将 libfuse 切换为异步处理 io_uring 操作应解决该问题。Koong 不确信那种 libfuse 更改能很好与有自己 I/O 处理想法的自定义库配合。Schubert 同意那可能是问题，但认为罕见，Koong 不同意。</p>
+                    <p>Schubert 说他计划向 libfuse 添加 coroutine 支持，应能使服务器仅用 libfuse 线程避免 head-of-line blocking 问题。他指出已经可写避免该问题的 FUSE 服务器，但必须用处理异步 io_uring 操作的额外线程。</p>
+                    <p>此时，会议时间已到，且不完全清楚之后会怎样。</p>
+                </div>
+            </div>
+
+            <!-- 文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">内核 / BPF · 网络</span>
+                    <h2>用 BPF 检视其他网络命名空间</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年8月5日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1085896/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Jordan Rife 的工作涉及为 <a href="https://cilium.io/">Cilium</a> 编写与 <a href="https://kubernetes.io/">Kubernetes</a> 网络接口的 BPF 程序。作为该工作的一部分，他想允许具有适当权限的 BPF 程序遍历不同 network namespace 的 socket。他在 2026 年 <a href="https://events.linuxfoundation.org/lsfmmbpf/">Linux 存储、文件系统、内存管理与 BPF 峰会</a>主持了关于该想法的会议，出席的 BPF 开发者迅速提出了若干相关替代方案。</p>
+                    <p>Socket-lb 是 Cilium 的一个特性，使用与给定 control group 关联的 socket 钩子将连接跨远程服务器负载均衡，同时避免网络地址转换（NAT）的每包开销。在不用 socket-lb 的设置中，客户端可能向前端服务器请求，然后前端用 NAT 透明路由连接到所选后端服务器。Socket-lb 通过让路由直接发生在客户端设备上来改进，对用户空间仍透明，但避免 NAT 暗示的额外网络跳。实践中，socket-lb 有一些限制，Rife 说。例如，如果所选后端消失，流量将继续指向那不存在的后端，直到 Cilium 清理。今天，该软件通过使用 BPF iterators 遍历可用 socket 并在需要时销毁它们来做到。</p>
+                    <p>那可行，但仅在特定 network namespace 内，因为 namespace 彼此隔离且不能看到彼此的 socket。实践中，这意味着 Cilium 的用户空间组件必须进入主机上每个 Kubernetes pod 的 namespace，扫描其 socket，然后退出 namespace 并进入下一个。这给整个过程增加了显著开销，其实不需要，因为 Cilium 本来有所有 network namespace 的管理访问权。</p>
+                    <p>更糟的是，socket 在内核中不按 network namespace 排序，因此每次 Cilium 的 BPF 程序扫描时，必须遍历整个 socket 哈希表；内核在 BPF 程序看到前过滤掉其他 namespace 的 socket。因此，Cilium 为每个 network namespace 遍历系统上每个 socket 的列表一次，这低效。在他的工作中，Rife 说曾见每台计算机多达 256 个 namespace。</p>
+                    <p>他提议的解决方案简单：创建新 iterator，供具有适当特权的 BPF 程序使用，一次遍历系统上所有 socket，即使是来自外部 namespace 的。那样，Cilium 不需更改 network namespace；它可简单用 BPF 程序定期扫描整个系统以查找陈旧 socket-lb socket。</p>
+                    <p>Jakub Sitnicki 问 Rife 为何不直接保留哪些 socket 对应哪些后端的列表，然后用那些。BPF 程序可将指向 socket 对象的指针存储在 <a href="https://www.kernel.org/doc/html/latest/bpf/map_sockmap.html">socket maps</a> 中，可用于存储弱引用（不增加 socket 引用计数、因此不阻止其关闭的指针）。所以，这样的方案不会在 socket 自然死亡后保持它们存活，他指出。Rife 在 2025 年确实试过，但使其工作比应有更复杂。在当前内核，BPF 程序不能从 socket map iterator 的上下文销毁 socket，因为它们需获取 socket 的锁。修复那需要重写围绕 socket 访问的许多锁逻辑。</p>
+                    <p>一种变通是添加 <code>bpf_sock_destroy()</code> 的可睡眠变体，将自行获取 socket 锁，Martin Lau 曾向他建议，他说。最终，Rife 放弃了该想法，但如果他提议的整机 iterator 不被接受，他可能回来。Sitnicki 想知道为何 socket map iterator 起初不可睡眠。Rife 不知道，尽管他推测 RCU 与 socket 锁交互可能有些挑战。Lau 澄清许多 BPF iterator 可睡眠，只是 socket map 特别有此问题。</p>
+                    <p>Rife 的一位同事正致力于在单独 map 中跟踪所有 socket 的元数据，那也可能是变通。另一种方法是让 <code>bpf_sock_destroy()</code> 本身从 socket map iterator 上下文工作，Rife 说。那难做而不增加引用计数（从而一些内存开销）或更改 iterator 语义。但允许足够特权的 BPF 程序遍历所有 network namespace 是整体简单得多的解决方案，他认为。</p>
+                    <p>Daniel Borkmann 提到 BPF 维护者曾讨论添加遍历 network namespace 的 iterator；或许该 iterator 的引用可作为受信任输入传给 socket map iterator，他建议，这将让现有 socket map iterator 工作而不需 Cilium 用户空间组件更改 namespace。Rife 指出那仍会多次遍历机器上所有 socket，只是完全在内核内做。</p>
+                    <p>Sitnicki 和 Lau 关于当前代码如何找 network namespace 引用及潜在改进进行了简短旁谈。Rife 同意研究它，并咨询网络维护者，但观察到那仍不解决他的效率问题。</p>
+                    <p>John Fastabend 指出 Cilium 在多处缓存原始 socket 指针，因为 BPF socket map 不可扩展，"这很讨厌"。存储在 BPF socket map 中的指向 socket 的指针在 socket 销毁时自动清理；作为不透明值存储在 BPF arena 中的 socket 指针便于跟踪存储，但不自动清理且不可解引用。Sitnicki 指出在 BPF arena 存 socket 指针不能很好用于 Rife 的用例。Fastabend 回复说他也不好用，但有许多理由想将 socket 搁在更灵活处。他建议更改 BPF socket map 为可调整大小（resizeable）。</p>
+                    <p>能挂载 sockfs（允许用户用文件系统 API 管理 socket 包括权限的虚拟文件系统）并以那样 pin socket 会不错，Sitnicki 说。那将完全避免需 BPF map。Lau 评论有人有补丁在进行与之相关，但仍认为能如 Rife 提议遍历一切会有用。</p>
+                    <p>Sitnicki 问 Rife 是否考虑获取可能消失的 UDP socket 后端进程的重复文件描述符，在 daemon 中持有，并在需要时用以清理。Rife 解释他愿从 BPF 做整个事。Fastabend 想知道这是否也是 TCP socket 问题。Borkmann 解释正常 TCP reset 机制会处理，但仅在足够长超时后，一些客户偏好 socket-lb 提供的更快故障转移，因此它用于 UDP 和 TCP。</p>
+                    <p>此时会议陷入关于其他应用可能用可调整 socket map 的讨论，然后时间耗尽。尽管与会开发者对 Rife 想法提出许多替代，无一人显敌意，只是有兴趣将棚子漆不同颜色。截至 8 月初，Rife 问题尚无接受方案。</p>
+                </div>
+            </div>
+
+            <!-- 文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">内核 / 文件系统 · FUSE</span>
+                    <h2>FUSE 现状与计划</h2>
+                    <div class="article-meta">
+                        <span>作者：Jake Edge</span>
+                        <span>发布日期：2026年8月5日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1086336/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p><a href="https://docs.kernel.org/filesystems/fuse/">Filesystem in Userspace</a>（FUSE）维护者 Miklos Szeredi 在 2026 年 <a href="https://events.linuxfoundation.org/lsfmmbpf/">Linux 存储、文件系统、内存管理与 BPF 峰会</a>主持了关于该子系统的 birds-of-a-feather（BoF）讨论。其中他谈了维护挑战、提议特性及其状态，以及他的新 FUSE API 计划。FUSE 社区目前似乎有很多兴趣和活动。</p>
+                    <p>他开始注意到他感觉"不是个好维护者"。做维护者有两方面，他认为，"一是挡住 bug，二是放特性进来"。他擅长第一，但不擅长第二。解决方式之一是 FUSE 有共同维护者（co-maintainer）。"如果有人自愿，我会非常高兴。"与会者有些或许开玩笑的建议，但无人站出来帮共同维护 FUSE 本身。</p>
+
+                    <h3>特性与清理</h3>
+                    <p>Szeredi 转到待定特性列表，从 Darrick Wong 的<a href="https://lwn.net/ml/linux-fsdevel/177188734044.3935739.1368557343243072212.stgit@frogsfrogsfrogs/">基于 iomap 的用户空间 API for FUSE</a> 开始。那补丁集很大，Szeredi 说，使内核中 FUSE 大小至少增 30%。来自 John Groves 的<a href="https://lwn.net/ml/all/0100019d43e5f632-f5862a3e-361c-4b54-a9a6-96c242a8f17a-000000@email.amazonses.com/">基于 FUSE 的 famfs</a> 补丁小得多，他希望那些在当早些时候的 <a href="https://lwn.net/Articles/1082687/">famfs session</a> 有些进展。他也提及 Joanne Koong 的 <a href="https://lwn.net/ml/all/20260402162840.2989717-1-joannelkoong@gmail.com/">FUSE 中 io_uring 的零拷贝支持</a>、来自 Horst Birthelmer 的 <a href="https://lwn.net/ml/all/20260604-fuse-compounds-upstream-v7-0-27331d085c2a@ddn.com/">compound commands</a>、Luis Henriques 的 <a href="https://lwn.net/ml/all/20260225112439.27276-1-luis@igalia.com/">file handle 用户空间 API for FUSE</a>、Bernd Schubert 在上一场主持的 <a href="https://lwn.net/Articles/1085618/">io_uring buffer size</a> 讨论，以及 Koong 的 <a href="https://lore.kernel.org/fuse-devel/20260624012132.1719941-1-joannelkoong@gmail.com/">FUSE 大 folio 支持</a>。同时，Szeredi 一直在重构和清理 FUSE API。</p>
+                    <p>他详述清理，从 <a href="https://lwn.net/ml/all/20260416091658.462783-1-mszeredi%40redhat.com/">传输和文件系统层分离</a> 开始，已进入即将到来的 7.2 内核。他计划对 <a href="https://lwn.net/Articles/308445/">字符设备用户空间</a>（CUSE）和 <a href="https://virtio-fs.gitlab.io/index.html">virtiofs</a> 做同样事。此外，他想提供多种层类型，引用现有网络与 io_uring 传输为例需更好分离。他也想将 superblock 操作从 <code>inode.c</code> 拉到自有 C 文件，并将"非常大"的 <code>file.c</code> 按所用 I/O 类型拆成更小文件。他鼓励他人提出清理想法。</p>
+                    <p>FUSE 的用户空间 API 已有 20 多年，像 FUSE 内核代码一样积累相当多糟粕。他已开始干净 slate API，"目前非常瘦"约 2,000 行代码，即当前 FUSE API 大小的 10%。它叫 "fusex"，用于 FUSE extended 或 experimental，并<a href="https://git.kernel.org/pub/scm/linux/kernel/git/mszeredi/fuse.git/commit/?h=fusex&id=1934d254361977df9fad43102ec1d72e20434a99">可在他的 FUSE 树中获取</a>。它有很多限制，因仅支持本地文件系统，正好与原 FUSE 网络文件系统焦点相反，他说。它也仅同步，无异步操作支持。虽然 fusex 当前用作添加可能最终迁入主 FUSE 代码库各种特性的实验树，他愿见它变成"协议的新主版本"。</p>
+                    <p>Ted Ts'o 提出了 FUSE 文件系统在非 Linux 平台使用的"有点相关"问题。特别是，有 <a href="https://man7.org/linux/man-pages/man1/fuse2fs.1.html">fuse2fs</a> FUSE 客户端在 macOS 和 Windows 的用户；Wong 一直在扩展它以用更新 FUSE 特性，Ts'o 说，并遇到 <a href="https://macfuse.github.io/">macFUSE</a> 问题。Ts'o 愿见更简单用户空间 API 因为他看了现有者并注意到其中体现的 20 年历史。他愿其 FUSE 驱动在 macOS 和 Windows 工作，但意识到可能需其他操作系统开发者与 Linux FUSE 项目大量协调，这可能没发生。Szeredi 指出他上次从 macFUSE 开发者听说已是 15 年前，因此无真正协调。</p>
+                    <p>Schubert 说他一直在处理 libfuse 在 BSD 上的一些 <a href="https://github.com/libfuse/libfuse#libfuse">问题</a> 且认为 macFUSE 基于 libfuse。在 BSD 上跑 libfuse 测试难，且他无也不想要 BSD 系统；一些 BSD 开发者正搞运行 OS 的虚拟机以便跑测试，但他认为 macFUSE 无类似努力。因 Apple 内核代码限制，他说当前方法是将文件系统挂载为 NFS 并用 FUSE-to-NFS 转换层。由于那些限制，他认为原生 macFUSE 开发已停止。</p>
+                    <p>Ts'o 说他正用 macFUSE 跑原生 macOS FUSE 在笔记本。问题是 Apple 需签名内核扩展，因此仅单一开发者能从 <a href="https://github.com/macfuse/macfuse#macfuse">GitHub 上 macFUSE 源码</a> 构建二进制。任何想用 macFUSE 者必须从 Apple store 获取二进制，他说；可能有方式让其他想搞代码者向 Apple 注册以便本地跑在笔记本，然而。Schubert 说 <a href="https://github.com/macos-fuse-t/fuse-t#abstract">FUSE-T</a> 是他谈的项目，Ts'o 不熟悉。Ts'o 确有兴趣使 fuse2fs 在 macOS 工作且也有 BSD 虚拟机访问，因此他可能帮些测试。</p>
+
+                    <h3>子维护者</h3>
+                    <p>Szeredi 指出他认为一些待定 FUSE 特性，如 iomap、file handle、compound command 支持，应进 fusex 而非现有 FUSE 实现。他也认为 FUSE 对某些片如 io_uring 路径有子维护者（sub-maintainers）有意义；他大笑着说 Schubert 已揽太多活但自愿子维护 FUSE io_uring。Schubert 说他总看影响那路径的补丁且想直接在变更时通知，但 Christian Brauner 警告作为子维护者也不太可能抄送像近期 <a href="https://lwn.net/Articles/1062856/"><code>kmalloc()</code> 转换</a> 的变更。</p>
+                    <p>Brauner 也建议 Koong 应考虑做 io_uring 子维护者。她有些犹豫同意，但有更一般担忧想提。她愿 FUSE 开发社区从 Szeredi 获更多关于什么是可维护的指导，尤其用户空间 API，难更改。他有数十年经验许多新 FUSE 开发者缺，她说。另一与会者指出子维护者仅当 Szeredi defer 其判断才有效；Szeredi 同意，指出他不能再将所有 FUSE 装进脑袋，因此已 defer 如 FUSE io_uring 给他人。</p>
+                    <p>用户空间 API 是需做对的重要事，Szeredi 说。Brauner 同意并指出内核开发者"对此烂"，但指出他认为虚拟文件系统（VFS）层开发者近期变好"因为我们与实际用户紧密同步"。那帮更好 API 也帮 API 采用；"常你能设计被用户空间忽略因不实用的 API"。</p>
+                    <p>Brauner 指出 VFS API 近期对扩展性的关注有益。一旦实现新特性，有趣扩展想法出现；能轻松容纳"在我经验中是无价的"。他指出 io_uring 是另一从开始烘焙扩展性的例子。</p>
+                    <p>Amir Goldstein 已自愿做 FUSE passthrough 子维护者但似乎怀疑加更多 FUSE 子系统条目到内核 <code>MAINTAINERS</code> 文件有用。他人不同意，Brauner 指出可能对职业生涯有帮助；工具，特别是 <a href="https://b4.docs.kernel.org/en/latest/">b4</a>，好用那些条目。Szeredi 加了两个新 FUSE 子系统，io_uring 和 passthrough，及新维护者；那变更 <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=6edc20078ad0b05ab2dc2693965d373628d65f80">合入 7.2</a>。</p>
+                    <p>Schubert 曾建议 FUSE 月度或双周电话会议，因此 Szeredi 请他描述想法。需对特性方法达成一致，Schubert 说；当前开发可进行数月直到 patch review 脱轨特性。那留开发者试图向管理解释需更多时间开发新补丁集。他建议设计在开发前提交邮件列表；那些设计可在电话讨论。Brauner 说他愿 VFS 开发者那样做。</p>
+
+                    <h3>Fusex</h3>
+                    <p>通过远程链接，Wong 问 fusex 及是否意为与现有 libfuse 工作。Szeredi 说，或许有点犹豫，是；Wong 希望将其 iomap 工作切到 fusex 不需改任何用户空间代码，但 Szeredi 不能承诺。他认为不需多代码，但 fusex 仍缺一些所需特性。</p>
+                    <p>Fusex 仅用于本地文件系统，他重申，意味着文件系统除通过 FUSE（和 fusex）外不能更改。那样做不应导致崩溃，但文件系统不正常工作因 fusex 无处理那情况的基础设施，那简化它极大。它仅是原型，但这点若继续，应加远程更改文件系统能力"但以比当前上游 FUSE 更 sane 方式"。</p>
+                    <p>Brauner 问 Szeredi 是否视 fusex 为现有 FUSE 替代；Szeredi 说是，但认为现有 FUSE 永不能消失因 fusex 不能完全向后兼容。两者将共享多相同代码，因此维护负担不大；事实上，"摆脱边角情况和奇怪行为"应使整体维护更易。</p>
+                    <p>Goldstein 指出维护负担需包括 libfuse，Szeredi 同意。Schubert 说他计划开始标记一些 libfuse 函数为弃用（deprecated）；希望文件系统开发者随时间远离它们。远离用弃用函数的转换甚至可由 LLM 处理，他说。</p>
+                    <p>Schubert 也问特性，如 compound commands，正被推到 fusex；开发那些特性的公司可能想用更少限制的上游 FUSE。Szeredi 说不反对加特性到主 FUSE 代码库，但愿合入 fusex 作为实验场所然后加其中的特性可合回常规 FUSE。此时会议时间到。Szeredi 在峰会后不久<a href="https://lwn.net/ml/all/CAJfpegvXnA1QpmfM9V+3VB470xYDNWH8FV0mBV1R1-HqvjfJ8A@mail.gmail.com/">向邮件列表发了会议摘要</a>。</p>
+                </div>
+            </div>
+
+            <!-- 文章 6 -->
+            <div class="article" id="article6">
+                <div class="article-header">
+                    <span class="article-category">内核 / BPF · 生态</span>
+                    <h2>BPF 中库的未来</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年7月31日（LSFMM+BPF 峰会）</span>
+                        <span><a href="https://lwn.net/Articles/1084869/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Song Liu 相信程序员组装复杂 BPF 程序的方式未来将快速变化。在 2026 年 <a href="https://events.linuxfoundation.org/lsfmmbpf/">Linux 存储、文件系统、内存管理与 BPF 峰会</a>会议中，他分享了关于那变化可能样子的想法，尽管他对 BPF 维护者该做或不做什么无具体提议。他预期 Rust BPF 包生态系统将发展，这重要因为 BPF 目前无真正包管理器。</p>
+                    <p>Liu 说，现有流行 BPF 库不多。那些存在的通常是小 header-only 库，或处理加载和管理 BPF 程序的用户空间侧。有 BPF 库非不可能；<a href="https://bpftrace.org/">bpftrace</a> 有标准库。Bpftrace 也能导入非标准库 BPF C 代码，类似正常 C 中内联汇编。"但我不确定人们真这样做，"他加。</p>
+                    <p>给定其余编程世界用库，为何不 BPF？有几个原因。其一，无标准包管理器或分发方式。而且，BPF 程序是否过验证器可取决于整个程序共同属性，不仅隔离函数。这使用库更难，许多人发现复制现有例子并改用于其用途比建可重用库易。该趋势明显例外是 libarena，它曾在 <a href="https://lwn.net/Articles/1078526/">峰会早些时候讨论</a>。</p>
+                    <p>Emil Tsalapatis 指出缺库的另一个原因可能是许多人将 BPF 程序写为单一 C 文件，不通过链接多个 BPF 对象所需步骤。他在处理 sched_ext 调度器时观察那模式。</p>
+                    <p>随 Alexei Starovoitov <a href="https://lwn.net/Articles/1075067/">计划使 BPF 更易用 Rust 写</a>，可能 BPF 库出现在 <a href="https://crates.io/">crates.io</a>（Rust 包仓库），Liu 说。但那有其自身问题：多库时难找好、可靠者。而且 libarena 若用 Rust 重写可能大变。Starovoitov 澄清 libarena 目前用 C 写，"但时机到我们会转 Rust"。</p>
+                    <p>Liu 然后推测大型语言模型（LLM）使用可能如何改变 BPF 库使用景象。他认为它们可能比人类作者更易复制修改现有方案，但难确定。Liu 预测更多 BPF 库将出现在 crates.io；伟大库留为库，仅好的库被复制、粘贴、修改。坏库导致问题并花时间转有用代码。那预测多取决于 LLM 适应 BPF 打包文化变化的好坏。</p>
+                    <p>Starovoitov 说他预期 LLM 快速适应特别 libarena 使用。库副本应留 GitHub，他说。然后 sched_ext 可将其作为 Git submodule 包含，一旦 LLM"第百万次刮 repo"将拾取已移入 libarena 代码并开始用。截至 2026 年 7 月，sched_ext 尚未加 libarena 为 submodule。总体，将库放入 LLM 知去寻处如 GitHub、crates.io 等将帮采用，Starovoitov 说。</p>
+                    <p>Liam Wiseheart 问人们期望 BPF 库放什么，除基本数据结构。"Whatever you want，" Starovoitov 答。其他与会者冒险一些候选答案，包括路径打印与遍历、字符串操作、基本文件 globbing、正则表达式。</p>
+                </div>
+            </div>
+
+            <!-- 文章 7 -->
+            <div class="article" id="article7">
+                <div class="article-header">
+                    <span class="article-category">内核 / 系统调用</span>
+                    <h2>重新审视 O_CREAT|O_DIRECTORY</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年7月30日</span>
+                        <span><a href="https://lwn.net/Articles/1085617/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Linux 提供系统调用（<code>mkdir()</code>）创建目录，和 <a href="https://man7.org/linux/man-pages/man2/open.2.html">几个 <code>open()</code> 变体</a> 可打开目录。但，Linux 中无系统调用能在单一、无竞态调用中创建并打开目录。Jori Koolstra 一直在补救该情况，最近通过改造当前返回错误的 <code>open()</code> 标志集。然而，有担忧显示创建不给应用开发者设陷阱的用户空间接口有多难。</p>
+                    <p>在单一系统调用创建并打开目录比用两个更简单高效，当然。它也防其他进程在创建和打开步骤间将目录替换为他物可能。检测那情况目前 Linux 可能，但需某些防御性编程，应用开发者不总擅长。因此渴望更直接方式完成那对操作。</p>
+                    <p>3 月，Koolstra 试图用 <a href="https://lwn.net/ml/all/20260331172011.3512876-1-jkoolstra@xs4all.nl/">补丁系列</a> 加新系统调用 <code>mkdirat_fd()</code> 解决，返回新创建目录的文件描述符。那系统调用在 <a href="https://lwn.net/ml/all/20260412135434.3095416-1-jkoolstra@xs4all.nl">后续补丁</a> 改为 <code>mkdirat2()</code>。有许多对实现担忧，也关于首先创建新系统调用。Christian Brauner 特别 <a href="https://lwn.net/ml/all/20260511-hochdekoriert-neoliberale-f7a2922bc57c@brauner">认为</a>这问题更好用修改 <code>open()</code> 处理一对现有标志解决。</p>
+                    <p>具体，所有 <code>open()</code> 变体支持 <code>O_DIRECTORY</code> 标志，如果应用试打开目录而非正常文件则必需。也支持 <code>O_CREAT</code>，指示 <code>open()</code> 如果命名文件不存在则创建。解释那两标志组合为请求创建并同时打开目录会有意义。加此能力到 <code>open()</code>，Brauner 说，也将使系统调用许多其他特性免费可用，如限制名如何解析的能力。因此他总结："I think here it is pretty clear that O_DIRECTORY|O_CREAT is the right thing to do"。</p>
+                    <p>Koolstra 遂将新 API 实现为 <a href="https://lwn.net/ml/all/20260517170244.1832119-1-jkoolstra@xs4all.nl">RFC 补丁集</a>，随后三个更多 RFC 和三个非 RFC 版本；仅在 <a href="https://lwn.net/ml/all/20260704164149.3480051-1-jkoolstra@xs4all.nl">最后那个</a> 发布后其他开发者开始认真看提议 API，且不都信服是正确方法。Pedro Falcato 特别 <a href="https://lwn.net/ml/all/akyyqnv9EpY7xVdC@pedro-suse.lan">主张</a>此 API 几乎不可能让应用可移植使用，给定 <code>O_CREAT|O_DIRECTORY</code> 过去解释方式数量。</p>
+                    <p>那故事确实有点复杂；LWN 在 2023 年 <a href="https://lwn.net/Articles/926782/">报道过</a>。Linux 处理带那标志组合的 <code>open()</code> 方式包括：</p>
+                    <ul>
+                        <li>older kernels 如果命名文件存在会失败，如果是常规文件返回 <code>ENOTDIR</code>，如果是目录返回 <code>EISDIR</code>。如果给定名无物，<code>open()</code> 会创建常规文件，似乎不可能调用者所要。</li>
+                        <li>自 2020 年 5.7 发布，内核开始最后情况返回错误，<em>仍创建文件</em>，似乎更不可能开发者希望。</li>
+                        <li>Brauner 加 <a href="https://git.kernel.org/linus/43b450632676">补丁</a> 到 6.4 使内核所有情况以 <code>EINVAL</code> 失败该标志组合。</li>
+                    </ul>
+                    <p>加上其他支持 POSIX 系统调用系统有自己对那标志组合解释，Falcato 说，结果将难正确使用：</p>
+                    <blockquote>
+                        <p>如果你想写可移植、或打算标准化的东西，你有大约 5 种不同行为横跨整个 FOSS UNIX 版图，还没考虑其他一切。它也可能永远不会进 POSIX，因为没人能就此处语义达成一致。</p>
+                        <p>TL;DR 鉴于上述原因，我不明白用户要如何使用它而不陷入彻底雷区。</p>
+                    </blockquote>
+                    <p>他建议将变更限 <code>openat2()</code> 可能更好方法。</p>
+                    <p>Brauner 虽 <a href="https://lwn.net/ml/all/20260707-vorteil-unhaltbar-apotheke-47bb105161ff@brauner">不理</a>担忧，说："I don't think any of this is really an argument worth considering"。那标志组合行为在 Linux 一致多年，他说，因此现在更好利用它有意义。Falcato <a href="https://lwn.net/ml/all/akznq3Tzkg3XbPAc@pedro-suse">指出</a>旧 LTS 内核从未收 6.4 变更，因此无一致行为，且用户空间仍须执行"某些相当 gnarly 测试"安全用特性。Brauner <a href="https://lwn.net/ml/all/20260707-latschen-positionieren-akkord-314a884b8868@brauner">建议</a>回填 6.4 修复，并加："Feature testing has always been a pain that we forced onto userspace. I think we should continue with that proud tradition"。</p>
+                    <p>Christoph Hellwig <a href="https://lwn.net/ml/all/alS10NN_OduZEqvt@infradead.org">不同意</a>：</p>
+                    <blockquote>
+                        <p>我们需要一个在 Linux 上自发现的接口。任何被先前内核接受并给出与新接口不同结果的标志组合，都不符合该要求。</p>
+                    </blockquote>
+                    <p>他加说不可能依赖修复回填所有在用旧内核。</p>
+                    <p>Neil Brown <a href="https://lwn.net/ml/all/178397852844.3371781.6900199568039042534@noble.neil.brown.name">建议</a>加新标志 <code>OPENAT2_NEW_COMBINATION</code>，将使 <code>openat2()</code> 拒绝任何未识别标志组合。任何旧内核将立即失败带那标志调用；新内核可用它启用先前不支持组合，包括 <code>O_CREAT|O_DIRECTORY</code>。Brauner 再次 <a href="https://lwn.net/ml/all/20260722-mundpropaganda-vorwahl-funkverkehr-48efdde92a00@brauner">不理</a> Hellwig 担忧为"a strawman"。他说他能无单一回归报告使那标志组合返回错误是无人冒风险加意义证据。Hellwig <a href="https://lwn.net/ml/all/amDBQN5lCGbRxGWm@infradead.org">不同意</a>，说一旦组合支持，应用将开始用，且它们会在旧系统破。他说，必需加"不意外在旧内核做错事的 APIs"。</p>
+                    <p>Koolstra 对 <code>openat2()</code> 建议 <a href="https://lwn.net/ml/all/1713122837.215334.1784765444011@kpc.webmail.kpnmail.nl">有不同担忧</a>：似乎许多 <a href="https://man7.org/linux/man-pages/man2/seccomp.2.html"><code>seccomp()</code></a> 配置仍阻 <code>openat2()</code>。那可能使新特性在许多系统不可用，减其价值。</p>
+                    <p>讨论接近结束（迄今），Brauner <a href="https://lwn.net/ml/all/20260724-jazzband-benannt-bauzeit-08186a6e1986@brauner">请</a> Koolstra 发支持 <code>openat()</code> 和 <code>openat2()</code> 版本。他没说 <code>open()</code> 变更是否应留，但抱怨"we're deliberately crippling a useful extension for userspace"。Koolstra 的系列 <a href="https://lwn.net/ml/all/20260712175539.1565444-1-jkoolstra@xs4all.nl">最新版本</a> 启用那标志组合给所有 <code>open()</code> 变体无任何额外检查。Brauner 尚未应用那系列，因此我们不知它是否以那形式进主线。</p>
+                    <p>长期保持兼容不易。确保新内核不破旧应用已够难，但避免破旧内核上新应用常更狡猾。关键方式之一是提供应用发现内核是否支持给定特性方法。此处分歧在于提议特性是否提供那发现机制，Falcato 和 Hellwig 等开发者说"不"，而 Brauner 觉在所有真要紧内核上可发现。只有一次机会做正确决定；一旦新特性在核心发布暴露，之后难更改。</p>
+                </div>
+            </div>
+
+            <!-- 本周引述 -->
+            <div class="article" id="quotes">
+                <div class="article-header">
+                    <span class="article-category">社区 / 引述</span>
+                    <h2>💬 本周引述（Quotes of the week）</h2>
+                    <div class="article-meta">
+                        <span>编辑：Daroc Alden、Joe Brockmeier 等</span>
+                        <span><a href="https://lwn.net/Articles/1086136/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全引述</h3>
+                    <blockquote>
+                        <p>开源软件维护整体上正变得不那么有趣。</p>
+                        <p>这是一个笼统且可能有争议的陈述，当然并非普遍成立。仍有相当多的人乐在其中。但 LLM 驱动的安全报告正是让许多人觉得开源维护不再有趣的那类东西，它与用户 entitlement（理所当然感）以及期望不断增长却无相应乐趣增加等更长期的因素并列。</p>
+                        <p>—— <a href="https://lwn.net/ml/all/87o6fmdgs6.fsf@hope.eyrie.org">Russ Allbery</a></p>
+                    </blockquote>
+                    <blockquote>
+                        <p>我有证据表明机器人现已能解 anubis 难度 5。不幸的是，到难度 6 时，网站只剩极其有耐心的人才能用了……</p>
+                        <p>另一方面，让某个随机的"住宅代理"电视设备去做 anubis 等级 6，可能真会把它弄着火，所以这方面也算是个可疑的胜仗。</p>
+                        <p>—— <a href="https://social.kernel.org/notice/B948NF3Owb0OmYhWJU">Konstantin Ryabitsev</a></p>
+                    </blockquote>
+
+                    <h3>内核引述</h3>
+                    <blockquote>
+                        <p>首先，<code>drivers/staging/</code> 的存在 primarily 是作为新内核开发者学习参与内核开发的地方。它包含大量"低垂的果实"，涉及代码清理和 API 变更，非常适合新开发者在安全友好的方式中学习流程，没有压力，因为没人<em>应该</em>依赖这些目录中的代码（证据是若你真把其中任何代码加载进内核树，会设置 TAINT_CRAP 标志）。</p>
+                        <p>我们不会只接受由工具生成的"修复本文件所有代码风格问题！"类补丁，那会违背 drivers/staging 存在的初衷。若我们真<em>在乎</em>这里的代码，明天就能搞定，但我们容忍这些问题恰恰因这里是人们起步、学习并成长之处。</p>
+                        <p>这意味着任何试图用 LLM 清理或"修复" <code>drivers/staging/</code> 中代码的行为，都在显式地破坏其存在的初衷。因此，今后我将自动拒绝任何用 LLM 生成的针对 <code>drivers/staging/</code> 子系统的补丁，以下注明的一个例外除外。</p>
+                        <p>—— <a href="https://lwn.net/ml/all/2026080354-skater-urgent-31b2@gregkh">Greg Kroah-Hartman</a></p>
+                    </blockquote>
+
+                    <h3>发行版引述</h3>
+                    <blockquote>
+                        <p>作为一个软件项目，我们应关心如何协作、产出的代码如何被他人理解、如何让其演进以满足新需求、当兴趣转移时维护权如何传递等。这正是我们拥有通用工具、Policy、特定规则的原因。LLM 倾向于增加代码量（我们能产出更多更快），却未相应扩充生态其余部分。</p>
+                        <p>—— <a href="https://lwn.net/ml/all/3291058.OBFZWjSADL%40turnagra/">Didier 'OdyX' Raboud</a>（于 Debian LLM 使用辩论中）</p>
+                    </blockquote>
+
+                    <h3>开发引述</h3>
+                    <blockquote>
+                        <p>政策部分条款不可强制执行。这非 bug。目标<em>不</em>是抓每起违规，而是创清晰界线规则：所有公开 LLM 文本须披露，除非政策特豁免。这让版主能基于<em>行为</em>而非意图识违，仅在决定回应方式时考虑意图。</p>
+                        <p>—— <a href="https://blog.rust-lang.org/inside-rust/2026/08/05/rust-langrust-is-adopting-an-llm-policy/">Jynn Nelson</a></p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for August 6, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1086136/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全</h3>
+                    <h4>一个 LLM 智能体试图入侵 GitHub 上的项目</h4>
+                    <p>英国 AI Security Institute 发布了<a href="https://www.aisi.gov.uk/blog/incident-report-unsanctioned-agent-behaviour-during-cyber-testing">一份详细报告</a>关于其自身引发的一起安全事件。该机构将一些 LLM 智能体放在互联网上执行一项安全挑战；很快它们就开始创建带有恶意软件的 pull request 以及用于推广这些请求的马甲（sock-puppet）账号。</p>
+                    <blockquote>
+                        <p>该智能体向 ⟨REPO_A⟩ 提交了一个恶意 pull request（PR），并采取了多种策略试图让其被合并：</p>
+                        <ol>
+                            <li>使用马甲账号在 PR 下反复评论，制造共识假象，并向维护者施压，使其在未充分审查的情况下批准。</li>
+                            <li>在另一个仓库（同样由 ⟨PERSON_A⟩ 拥有）中开了一个 GitHub Issue，其中包含针对其他编码智能体的提示注入（prompt injection）。这些恶意指令是写给 issue 分诊的 AI 编码智能体的，在网站上查看的人类不可见。</li>
+                            <li>向 ⟨PERSON_A⟩ 和 ⟨PERSON_B⟩ 发送多封邮件，使用不同借口诱使他们运行恶意代码。在该样本期间，智能体共发送了五封邮件，其中一些包含恶意软件，另一些旨在说服维护者接受该 pull request。</li>
+                        </ol>
+                    </blockquote>
+                    <p>如果这是唯一一起此类事件，那才令人惊讶；此处唯一的真正不同在于相关人士记录了所发生的事。</p>
+
+                    <h4>SQLite 严重 CVE 还是 LLM 垃圾？（JFrog 博客）</h4>
+                    <p>JFrog 博客<a href="https://research.jfrog.com/post/sqlite-critical-cves-or-llm-slops/">审视了一些报告的 SQLite 漏洞</a>，其中部分已进入了知名的漏洞数据库，但结果发现完全是由 LLM 编造的。</p>
+                    <blockquote>
+                        <p>这些 LLM slop（垃圾）CVE 会导致组织浪费时间调查并修补根本不存在的漏洞，同时还会污染漏洞数据库。在那些根据漏洞评分自动优先处理严重漏洞或自动开单的环境中，此类虚构的 CVE 会变成真正的负担。</p>
+                        <p>在那些使用 AI 来自动化漏洞分诊与修复的环境中，这一点更令人担忧。遇到虚构 CVE 的 AI 智能体可能会试图定位有漏洞的函数、生成补丁，或基于根本不存在的代码提出建议。非但没帮助安全团队修复真实漏洞，反而可能将他们引向完全错误的方向，潜在地引入不必要的改动并浪费时间。</p>
+                    </blockquote>
+
+                    <h4>又一个 npm 蠕虫</h4>
+                    <p><a href="https://www.stepsecurity.io">StepSecurity</a> <a href="https://www.stepsecurity.io/blog/chaindrop-npm-worm">报告</a>称出现了一种影响 npm 包的新蠕虫。该蠕虫的设计并不新鲜，但其利用已泄露 npm 打包者凭证的速度之快值得注意。</p>
+                    <blockquote>
+                        <p>摘要：一个自我传播的蠕虫，我们称之为 ChainDrop，正在 npm 生态中快速扩散。迄今已有 435 个包和超过 1,550 个被入侵的版本被标记，起始于 keyv@6.0.0。如果你使用了下方列出的任何包，请假定你的环境已遭入侵。我们仍在调查完整范围；请关注本帖更新。</p>
+                    </blockquote>
+
+                    <h3>内核开发</h3>
+                    <h4>内核发布状态</h4>
+                    <p><strong>当前开发内核是 7.2-rc6</strong>，于 8 月 3 日<a href="https://lwn.net/Articles/1086726/">发布</a>。Linus 说："Hmm. This rc is huge. Even by the 'new normal' standards this is a big rc, and I think it's the biggest rc6 we've had in years at least by commit count."</p>
+                    <p>该版本包含来自 2,545 名开发者的 15,793 个非合并变更集，创纪录的 565 人为首次内核贡献者。发布历史如下：</p>
+                    <table>
+                        <thead>
+                            <tr><th>RC 版本</th><th>日期</th><th>提交数</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>v7.2-rc1</td><td>2026-06-28</td><td>14,395</td></tr>
+                            <tr><td>v7.2-rc2</td><td>2026-07-05</td><td>433</td></tr>
+                            <tr><td>v7.2-rc3</td><td>2026-07-12</td><td>475</td></tr>
+                            <tr><td>v7.2-rc4</td><td>2026-07-19</td><td>557</td></tr>
+                            <tr><td>v7.2-rc5</td><td>2026-07-26</td><td>611</td></tr>
+                            <tr><td>v7.2-rc6</td><td>2026-08-03</td><td>615</td></tr>
+                        </tbody>
+                    </table>
+                    <p>见 <a href="https://lwn.net/ksdb/releases/v7.2/">LWN KSDB v7.2 页面</a> 更多细节。</p>
+                    <p><strong>Stable updates（稳定版更新）</strong>：单修复的 <a href="https://lwn.net/Articles/1086227/">6.18.41</a>、<a href="https://lwn.net/Articles/1086228/">6.12.100</a>、<a href="https://lwn.net/Articles/1086229/">6.6.147</a>、<a href="https://lwn.net/Articles/1086230/">6.1.180</a>、<a href="https://lwn.net/Articles/1086231/">5.15.213</a>、<a href="https://lwn.net/Articles/1086233/">5.10.262</a> 更新于 7 月 30 日发布，随后大的 <a href="https://lwn.net/Articles/1086901/">7.1.6</a>、<a href="https://lwn.net/Articles/1086903/">6.18.42</a>、<a href="https://lwn.net/Articles/1086904/">6.12.101</a>、<a href="https://lwn.net/Articles/1086905/">6.6.148</a> 更新于 8 月 3 日。</p>
+
+                    <h3>发行版</h3>
+                    <h4>Arch Linux 禁用 AUR 包收养</h4>
+                    <p>Arch Linux DevOps 团队<a href="https://lists.archlinux.org/archives/list/aur-general@lists.archlinux.org/message/DRDEU3JUSC72CB265XHXPFA3DFSLXPBP/">宣布</a>因"当前涌入恶意包采纳及后续通过 AUR 的提交"，已禁用 Arch User Repository（AUR）中孤儿包采纳。Michael Taggart <a href="https://discourse.ifin.network/t/new-aur-attack-prompts-adoption-lock/698">发布简要分析</a>关于加到<a href="https://lists.archlinux.org/archives/list/aur-general@lists.archlinux.org/thread/P4WIRHTFNH2YZWQHGBAKQWX5YOAFIDLY/">一长串包</a>的恶意软件。载荷<a href="https://gist.github.com/ysf/57850cdee152da066ac51c07a452e883">看似</a>是通过 Tor 网络取命令并尝试上传广泛用户数据的远程访问木马（RAT）。</p>
+                    <p>项目曾于六月<a href="https://lists.archlinux.org/archives/list/aur-general@lists.archlinux.org/message/4JRS73YVTE7JUYHHE3ZDUIHXYHXZ3YQQ/">暂停新账户注册</a>。那在<a href="https://lwn.net/Articles/1077619/">攻击活动</a>后，攻击者为采纳孤儿包并推恶意更新到用户系统创建新账户。AUR 注册于 7 月 13 日<a href="https://lists.archlinux.org/archives/list/aur-general@lists.archlinux.org/message/TT3OCFFNM6SBMUBKIVTHTKA6UZJNMXIJ/">重开</a>后 DevOps 团队加些轻微且似乎无效的新账户限制。</p>
+
+                    <h4>NetBSD 11.0 发布</h4>
+                    <p><a href="https://netbsd.org/">NetBSD</a> 11.0（第 19 个主版本）<a href="https://lwn.net/Articles/1086899/">宣布</a>发布。自 10.1 有许多变化和增强，包括新 RISC-V 移植、对 Linux 系统调用更好的支持（<a href="https://man.netbsd.org/NetBSD-11.0/compat_linux.8"><code>compat_linux()</code></a>），以及 <a href="https://man.netbsd.org/NetBSD-11.x-BRANCH/npf.7">NPF</a> 防火墙改进。</p>
+                    <blockquote>
+                        <p>你可能已意识到，随着 AI 工具出现，各处发现或疑似的安全问题数量已大幅增加。因此，我们无法在有无开放问题的情况下发布版本。与其为修复它们进一步推迟发布（新问题不断被报告），我们选择对此保持透明。</p>
+                    </blockquote>
+                    <p>见完整<a href="https://netbsd.org/releases/formal-11/NetBSD-11.0.html">发布说明</a>。</p>
+
+                    <h3>开发</h3>
+                    <h4>b4 0.16.0 发布</h4>
+                    <p>Konstantin Ryabitsev 宣布发布 <a href="https://b4.docs.kernel.org/en/latest/">b4</a> 软件开发工具 0.16.0 版。最大变化是加 bug 跟踪支持：</p>
+                    <blockquote>
+                        <p>新的 "b4 bugs" 命令与 git-bug 集成，让你能在 git 仓库旁跟踪 bug 报告。Bugs 作为 git 对象存于仓库内，故随代码走，并可通过 git push/pull 共享，无需外部服务。</p>
+                    </blockquote>
+                    <p>也有许多 <code>b4 review</code> 改进、<code>b4 shazam</code> 更好冲突解决、改进历史重写等。</p>
+
+                    <h4>C-Kermit 11 发布</h4>
+                    <p>John Goerzen <a href="https://changelog.complete.org/archives/44456-celebrating-45-years-of-kermit-with-the-first-new-c-kermit-release-in-15-years-and-working-with-a-decades-old-c-codebase">宣布</a>发布 C-Kermit 11，此文件传输工具 15 年来首次发布。</p>
+                    <blockquote>
+                        <p>作为 Kermit 的 Debian 维护者，我注意到一些不符现代预期之处。其一，毫不意外于其年代，是安全性。其二是其字符集或行尾转换如今通常不需要；我们习惯字节级一致二进制传输，而那些默认设置导致混淆甚至罕见数据损坏。于是去年我开始做些补丁。</p>
+                    </blockquote>
+
+                    <h4>rust-lang/rust 正采用 LLM 政策</h4>
+                    <p>Jynn Nelson 在 Inside Rust 博客<a href="https://blog.rust-lang.org/inside-rust/2026/08/05/rust-langrust-is-adopting-an-llm-policy/">描述 Rust 语言团队的新 LLM 政策</a>：</p>
+                    <blockquote>
+                        <p>除作者外，无人被要求阅读 LLM 输出，除非其自愿：LLM 输出不允许出现在公开文档、PR 描述或 Github 评论中，除非明确标记；审查者不想看 LLM 的 PR 时可不看。</p>
+                        <p>无人被要求使用 LLM 来为 <code>rust-lang/rust</code> 做贡献：政策须先为人类书写，再为机器总结；LLM 审查不能替代人类审查或自我审查。</p>
+                        <p>允许生成仅自己可见的 LLM 内容，无需披露，只要你不贴到任何期望我们阅读或审查之处。</p>
+                    </blockquote>
+
+                    <h4>Pandoc 二十年</h4>
+                    <p>John MacFarlane 发布<a href="https://pandoc.org/twenty-years-of-pandoc.html">长篇回顾</a>纪念文档转换器 <a href="https://pandoc.org/">Pandoc</a> 二十年（2006 年 8 月 3 日首版发布）。项目如今支持超 50 种文档格式，并集成进 Quarto、Jupyter Notebook 等工具。</p>
+
+                    <h4>Servo 0.4.0 发布</h4>
+                    <p><a href="https://servo.org/">Servo</a> 浏览器引擎项目发布 <a href="https://servo.org/blog/2026/07/31/june-in-servo/">2026 年 6 月变更更新</a>及 Servo Tech Demo <a href="https://github.com/servo/servo/releases/tag/0.4.0">0.4.0 版</a>，含创纪录的 558 次提交、更好的网站布局正确性、改进的 WebGPU 支持等。</p>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for August 6, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1086137/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：DistroWatch Weekly（8 月 3 日）、This week in F-Droid（7 月 31 日）、This week in Fedora（8 月 3 日）、openSUSE Tumbleweed Review of the Week（7 月 31 日）、SparkyLinux News（8 月 1 日）、Ubuntu Weekly News（7 月 27 日）。</p>
+                    <p><strong>开发</strong>：Emacs News（8 月 3 日）、GCC 16.1.1 Status Report（7 月 31 日）、Git Rev News（7 月 31 日）、What's cooking in git.git（8 月 3 日）、This Week in GNOME（7 月 31 日）、GNU Tools Weekly News（8 月 2 日）、Golang Weekly（7 月 31 日）、Koha Community Newsletter（7 月）、Last Week in Kubernetes Development（7 月 30 日）、LibreOffice project and community recap（8 月 5 日）、This Week in Matrix（7 月 31 日）、OCaml Weekly News（8 月 4 日）、Perl Weekly（8 月 3 日）、This Week in Plasma（8 月 1 日）、PyCoder's Weekly（8 月 4 日）、Weekly Rakudo News（8 月 3 日）、Ruby Weekly News（7 月 30 日）、This Week in Rust（7 月 29 日）、Wikimedia Tech News（8 月 3 日）。</p>
+                    <p><strong>会议记录</strong>：Fedora FESCo meeting minutes（8 月 4 日）、openSUSE Release Engineering minutes（7 月 30 日、8 月 5 日两期）。</p>
+                    <p><strong>其他</strong>：Free Software Supporter（8 月）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 11 日</td><td>10 月 6 日</td><td><a href="https://pretalx.com/ypdd-2026/cfp">Yocto Project Developer Day 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 2–4 日</td><td><a href="https://conf.gnu-tools-cauldron.org/prg26/">GNU Tools Cauldron</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 3–4 日</td><td><a href="https://pretalx.linuxdays.cz/linuxdays-2026/cfp">Linux Days 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>10 月 6 日</td><td><a href="https://forms.gle/iRK48ACWnMatihg59">Real-time Linux User Forum</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>次年 1 月 20–22 日</td><td><a href="https://2027.everythingopen.au/programme/proposals/">Everything Open</a></td><td>布里斯班，澳大利亚</td></tr>
+                            <tr><td>10 月 1 日</td><td>11 月 7–8 日</td><td><a href="https://cfp.openfest.org">OpenFest 2026</a></td><td>索非亚，保加利亚</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 6–9 日</td><td><a href="https://2026.fossy.ca/">FOSSY 2026</a></td><td>温哥华，加拿大</td></tr>
+                            <tr><td>8 月 8–9 日</td><td><a href="https://2026.ubucon.asia">UbuCon Asia 2026 @ COSCUP</a></td><td>台北，中国台湾</td></tr>
+                            <tr><td>8 月 11–12 日</td><td><a href="https://events.linuxfoundation.org/open-source-summit-korea/">Open Source Summit Korea</a></td><td>首尔，韩国</td></tr>
+                            <tr><td>8 月 14–16 日</td><td><a href="https://www.hope.net/">Hackers on Planet Earth</a></td><td>纽约，美国</td></tr>
+                            <tr><td>8 月 25–30 日</td><td><a href="https://ch2026.mini.debconf.org/">MiniDebConf and MiniDebCamp Winterthur 2026</a></td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 30 日–9 月 5 日</td><td><a href="https://2026.foss4g.org/en/">FOSS4G Hiroshima 2026</a></td><td>广岛，日本</td></tr>
+                            <tr><td>9 月 17–18 日</td><td><a href="https://git-merge.com/">Git Merge</a></td><td>里斯本，葡萄牙</td></tr>
+                            <tr><td>9 月 19–20 日</td><td><a href="https://nextcloud.com/conference-2026">Nextcloud Community Conference 2026</a></td><td>柏林，德国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td><a href="https://reproducible-builds.org/events/gothenburg2026/">Reproducible Builds Summit</a></td><td>哥德堡，瑞典</td></tr>
+                            <tr><td>9 月 22–24 日</td><td><a href="https://kernel-recipes.org/en/2025/">Kernel Recipes</a></td><td>巴黎，法国</td></tr>
+                            <tr><td>9 月 25–27 日</td><td><a href="https://postmarketos.org/conference/">PostmarketOS and Alpine Linux Conference</a></td><td>亚琛，德国</td></tr>
+                            <tr><td>9 月 28–30 日</td><td><a href="https://indico.freedesktop.org/event/12/">X.Org Developers Conference</a></td><td>多伦多，加拿大</td></tr>
+                            <tr><td>9 月 28 日–10 月 1 日</td><td><a href="https://www.alpss.at/">Alpine Linux Persistence and Storage Summit</a></td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>9 月 30 日–10 月 1 日</td><td><a href="https://all-systems-go.io/">All Systems Go! 2026</a></td><td>柏林，德国</td></tr>
+                            <tr><td>10 月 1 日</td><td><a href="https://opentechday.de/">Open Tech Day | Software-defined Storage</a></td><td>纽伦堡，德国</td></tr>
+                            <tr><td>10 月 1–2 日</td><td><a href="https://www.elsa-symposium.com/home">embedded Linux for Safe and Secure Applications</a></td><td>哥廷根，德国</td></tr>
+                            <tr><td>10 月 2–4 日</td><td><a href="https://gnu-tools-cauldron.org/">GNU Tools Cauldron</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 3–4 日</td><td><a href="https://events.opensuse.org/conferences/oSAS26">openSUSE.Asia Summit 2026</a></td><td>日惹，印度尼西亚</td></tr>
+                            <tr><td>10 月 3–4 日</td><td><a href="https://www.linuxdays.cz/2026/">Linux Days 2026</a></td><td>布拉格，捷克</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>本期涵盖了 7 月 30 日至 8 月 5 日期间各发行版发布的大量安全公告，涉及 AlmaLinux、Debian（含 stable 与 LTS）、Fedora、Mageia、Oracle、Red Hat、Slackware、SUSE 以及 Ubuntu。受影响软件包包括 .NET 系列、kernel 多个版本、gstreamer 插件、openssh、libtiff、perl 系列、php、postgresql 系列、nginx、unbound、vim、zlib/zlib-ng、nodejs、thunderbird、xen、chromium、samba、sssd、libssh、openssl、fence-agents、frr、perl-Archive-Tar、perl-DBI、pipewire、rest、ldns、libXfont2、mingw-glib2、nodejs-nodemon、python-pillow、qemu-kvm、podman、valkey、wordpress、libgcrypt、web 服务器与数据库驱动等数百项。完整条目见 <a href="https://lwn.net/Articles/1087319/">LWN 安全公告摘要（2026年7月30日–8月5日）</a>。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（7 月 29 日–8 月 5 日）内核相关补丁精选包括：</p>
+                    <ul>
+                        <li><strong>内核发布</strong>：Linux 7.2-rc6（Linus Torvalds，8 月 2 日）、Linux 7.1.6 / 6.18.42 / 6.18.41 / 6.12.101 / 6.12.100 / 6.6.148 / 6.6.147 / 6.1.180 / 5.15.213 / 5.10.262（7 月 30 日–8 月 3 日），以及对应的 -rt 实时内核版本。</li>
+                        <li><strong>架构相关</strong>：arm64 的 Arm CCA in KVM、preemptible this_cpu_*() 操作；riscv 的 Ssqosid/CBQRI resctrl 支持、Eager Page Splitting、硬件断点/观察点、livepatch 可靠栈展开；s390 的 arm64 KVM 引入；x86 的 AET PMT 可加载模块、SEV-SNP 安全中断交付；region-aware RDT 支持等。</li>
+                        <li><strong>核心内核</strong>：binfmt_misc 绑定解释器到 bpf-backed entry、kexec 避开硬件中毒页、加速普通 RCU 回调、KHO 多版本支持、io_uring 的 dmabuf 读写、wprobe x86 watchpoint、sched_ext 带宽受限的救援执行、kfunc 生成 bpf_func_proto、RCU/srcu 任意上下文安全 call_rcu()、动态 PREEMPT_DYNAMIC、实时 workqueue、tracing remotes、NOHZ 平衡偏好完全空闲核、Rust 的引用计数中断禁用与 SpinLockIrq、workqueue OwnedQueue/ScopedQueue、BPF 聚合返回值（至多 16 字节）、BPF stack map 禁用抢占等。</li>
+                        <li><strong>开发工具</strong>：vfio IGB 驱动 selftest、lib/crypto AES-CCM/GCM KUnit 与 FIPS 自测、DAMON kunit/selftests、net 多线程 multiqueue iou-zcrx、KVM selftests、合成 MM 基准、anon mTHP collapse 测试、resctrl IMC 计数器、kallsyms 嵌入源码文件:行信息、khugepaged 覆盖改进、osnoise 跟踪 IPI、shaper API selftest 等。</li>
+                        <li><strong>设备驱动与基础设施</strong>：大量新硬件支持（Qualcomm/ MediaTek/ Rockchip/ AMD/ NVIDIA/ Intel 等平台相机、显示、网络、音频、电源驱动）、Rust dma_buf/dma_fence 抽象、phy_port SFP 表示、SPI sysfs 接口、PHY 自主 EEE provider、vfio/pci ZONE_DEVICE-backed DMABUF、Rust io register projections 等。</li>
+                        <li><strong>文件系统与块层</strong>：block 设备 RWF_DONTCACHE、iomap next() 模型、f2fs 设备别名动态预留、block NVMEM provider、fuse EOF 部分页清零、md 无锁 bitmap reshape、负目录项易修部分、famfs standalone、XFS fs-verity 含 post EOF merkle tree、ublk io_desc 优化、netfs folio 分段 bio_vec 链、btrfs -ENOMEM 容错、iomap &amp; xfs 缓冲直写（write-through）、ceph 写回转 folios、zone 离线/只读改进、nbd 去除队列冻结开销等。</li>
+                        <li><strong>内存管理</strong>：MAP_PRIVATE 文件支持 folio 匿名 pgoff 索引、swap 不可用避免大 folio 分裂、非临时存储降级、hugetlbfs 用 generic_file_read_iter、去除 PG_private、无条件每-VMA 锁、zone-device memmap 初始化优化、巨大 shrinker 感知 memcg、PTE const 类型安全、MGLRU 频率引导提升（MGLRU-FG）、HugeTLB section 级 vmemmap 优化、设备页错误迁移、xswap 动态 cluster 管理、可拆分无映射 swapcache folios 等。</li>
+                        <li><strong>网络</strong>：tun/tap &amp; vhost-net qdisc 背压、nvme-tcp NIC 拓扑感知 I/O 队列扩展、wifi CIP API、mptcp 乱序队列剪枝、ipvs 目标过载状态修复、af_unix LSM 拒绝有用处理、mac80211 组密钥安装、ipv6 路由删除原因上报、virtio_net ethtool 流规则、openvswitch 移除旧式隧道端口、bpf_ksock 引入等。</li>
+                        <li><strong>安全相关</strong>：BPF 接口应用 Landlock rulesets、CRASH_ZEROIZE kdump 前擦除机密、landlock 限制 whiteout 对象创建、hibernate 加密快照于 lockdown 下、LANDLOCK_RESTRICT_SELF_NO_NEW_PRIVS 等。</li>
+                        <li><strong>虚拟化与容器</strong>：KVM x86 启用 APX for guests、nSVM DecodeAssists、arm64 FEAT_NV2p1/FEAT_NV3 与 GCS guest 支持、移除旧 Hyper-V 版本、nVMX RSM 坏状态 SHUTDOWN、pKVM hypervisor 堆分配器、受保护 VM 巨页映射、SEV IBPB-on-Entry、guest_memfd folio 迁移、KVM 时钟清理、VBS/VSM-on-KVM VM planes 等。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1086134/" target="_blank">LWN.net Weekly Edition for August 6, 2026</a></p>
+            <p>更新时间：2026年8月14日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
