@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年8月13日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年8月13日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">用 BPF 为 binfmt_misc 带来解释器选择</a></li>
+                    <li><a href="#article2">CrossPoint 电子书阅读器固件一览</a></li>
+                    <li><a href="#article3">KVM planes 整装待发</a></li>
+                    <li><a href="#article4">为 BPF 做更多形式化验证</a></li>
+                    <li><a href="#article5">shadow-utils 口令过期功能的变更</a></li>
+                    <li><a href="#article6">块层错误注入</a></li>
+                    <li><a href="#quotes">💬 本周引述</a></li>
+                    <li><a href="#briefs">📝 简讯</a></li>
+                    <li><a href="#announcements">📢 公告</a></li>
+                </ul>
+            </div>
+
+            <!-- 文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">内核 / 进程与格式</span>
+                    <h2>用 BPF 为 binfmt_misc 带来解释器选择</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年8月6日</span>
+                        <span><a href="https://lwn.net/Articles/1086947/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Linux 内核原生支持 ELF 等可执行格式，并通过 <code>binfmt_misc</code>（自 1997 年的 2.1.43pre1 引入）让用户空间配置对"任意格式程序"的透明执行。配置通过向 <code>/proc/sys/fs/binfmt_misc/register</code> 写入完成，可基于文件头 256 字节的模式或扩展名匹配，例如 <code>:DEXE:M::\x0eDEX::/usr/bin/dosexec:</code> 或 <code>:python:E::py::/usr/bin/python3:</code>。条目按与注册顺序相反的次序被检查。</p>
+
+                    <h3>Hermetic 二进制带来的难题</h3>
+                    <p>Nix 等发行版需要可重定位（hermetic）的二进制，但 ELF 的 <code>PT_INTERP</code> 字段要求用绝对路径指定动态链接器。Farid Zakaria 提议允许相对路径，却遭到 Kees Cook 与 Christian Brauner 反对——Brauner 称这容易引发"恶意加载器注入攻击（malicious loader injection attacks）"，转而建议扩展 <code>binfmt_misc</code>，用 BPF 程序来选择一个解释器。</p>
+
+                    <h3>BPF 接管 binfmt_misc</h3>
+                    <p>Brauner 发布了补丁，提供 <code>struct binfmt_misc_ops</code>，包含 <code>match()</code>、<code>load()</code> 回调以及 <code>name</code> 字段。<code>match()</code> 可以读取整个可执行文件（而非仅限于 256 字节）；<code>load()</code> 则通过 <code>bpf_binprm_set_interp()</code> 设置解释器。注册字符串形如 <code>:name:B::::bpf-handler-name:</code>。Zakaria 确认该方案满足 Nix 的用例，并且能让 <code>#!</code> 行的解释器也可重定位。</p>
+
+                    <h3>进一步的步骤</h3>
+                    <ul>
+                        <li><strong>透明分发（transparent dispatch）模式（<code>T</code> 标志）</strong>：内核直接执行该二进制，但在幕后替换解释器；argv 与命令字符串保持原样，解释器通过 <code>AT_EXECFD</code> 拿到该文件的文件描述符。</li>
+                        <li><strong>加载器替换（loader substitution）模式（<code>L</code> 标志）</strong>：仅覆盖 <code>PT_INTERP</code>，适用于原生二进制。</li>
+                        <li><strong>预打开解释器的问题</strong>：BPF 可以任意设定路径，但在命名空间内可能被劫持。Brauner 的补丁允许在注册时预先打开一组解释器，并新增"disabled"模式（例如先 <code>echo ':qemu:B::::qemu_user:D' &gt; register</code>，再逐行追加）。</li>
+                        <li><strong>资源限制</strong>：限制每用户可保持打开的解释器文件数量，以防用户命名空间耗尽资源。</li>
+                    </ul>
+                    <p>状态：除资源限制系列外，其余均已进入 linux-next，预计在 7.3 合并窗口进入主线。</p>
+                </div>
+            </div>
+
+            <!-- 文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">嵌入式 / 固件</span>
+                    <h2>CrossPoint 电子书阅读器固件一览</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年8月12日</span>
+                        <span><a href="https://lwn.net/Articles/1087635/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Xteink 等厂商出口袋电子书阅读器（例如 Xteink 4，采用 ESP32 芯片、4.3 寸屏、无触控）。CrossPoint 项目（MIT 许可，200+ 贡献者）提供替代固件，支持 6 款 ESP32-C3/S3 设备，售价 50–80 美元。</p>
+
+                    <h3>版本 1.5.0</h3>
+                    <p>8 月 7 日发布的 1.5.0 加快了 EPUB 打开速度，加入离线字典、从右到左与 CJK 文本渲染；首次支持 reTerminal Sticky（ESP32-S3）。</p>
+
+                    <h3>安装与管理</h3>
+                    <p>可通过 Web 闪刷工具或 SD 卡安装；默认固件渲染慢、导航笨拙，CrossPoint 体验更佳。设备内置 HTTP 服务器（无 HTTPS），访问 <code>crosspoint.local</code> 或 DHCP 分配的 IP 即可传文件、改设置；Calibre 插件可优化 EPUB（缩略图、去除内嵌字体、拆分章节）。</p>
+
+                    <h3>阅读体验与路线图</h3>
+                    <p>阅读体验"尚可（adequate）"，代码块无样式；支持自动翻页（最高 12 页/分）、StarDict 字典、KOReader 进度同步、Hardcover 追踪。路线图上：Phase 0 已完成；Phase 1 扩展设备、降低内存占用；Phase 2 多语言 UI 与字体。</p>
+                </div>
+            </div>
+
+            <!-- 文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">虚拟化 / KVM</span>
+                    <h2>KVM planes 整装待发</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年8月11日</span>
+                        <span><a href="https://lwn.net/Articles/1087590/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>机密计算（confidential computing）需要在单一虚拟机内建立多个安全域。各厂商方案各不相同：Arm 的 <strong>Realm Planes</strong>、AMD 的 <strong>SEV-SNP</strong>（最多 4 个特权级）、Intel 的 <strong>TDX</strong> partitions、以及微软 <strong>Hyper-V</strong> 的 Virtual Trust Levels。</p>
+
+                    <h3>KVM planes</h3>
+                    <p>由 Jörg Rödel 等人开发的 KVM planes，名称取自 Arm 以统一称谓。一个 plane 封装处理器/虚拟机监控器的特权级，与所属 plane 共享地址空间但拥有自己的寄存器；新增 <code>ioctl()</code> <code>KVM_CREATE_PLANE</code> 用于创建 plane。vCPU 必须属于更特权 plane 的一个子集。</p>
+
+                    <h3>调度与实现</h3>
+                    <p>同一 vCPU 在同一时刻只有一个 plane 在运行；补丁集的策略是"编号最小的 plane 先运行"，Bonzini 对此提出了质疑。</p>
+                    <p>实现上已支持 SEV-SNP（Coconut SVSM 运行于特权级 0，Linux 运行于 2）；Hyper-V 用 VTL1 安全内核、VTL0 客户内核，并演示了 HEKI（hypervisor-enforced kernel integrity，虚拟机监控器强制内核完整性）。</p>
+                    <p>状态：相关讨论仍在演进中，尚未固化。</p>
+                </div>
+            </div>
+
+            <!-- 文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">内核 / BPF · 验证</span>
+                    <h2>为 BPF 做更多形式化验证</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年8月10日（LSFMM+BPF 2026 报道）</span>
+                        <span><a href="https://lwn.net/Articles/1087069/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在 LSFMM+BPF 2026 峰会上，Kumar Kartikeya Dwivedi 提出为 BPF 加入领域特定的不变量。BPF 验证器能保证内核不会崩溃，但 sched_ext 的看门狗每月会踢掉 1–2 个调度器（以 Meta 为例），而一个 XDP 程序若丢弃数据包则可能导致失联。</p>
+
+                    <h3>主张</h3>
+                    <p>Dwivedi 认为，性能性质同样属于安全属性；应当借助如 <strong>Verus</strong>（Rust 验证工具）这样的手段，对关键属性（例如"有可运行任务时 CPU 不得空转"）做静态验证。他以一个简化的 <code>push()</code>/<code>pop()</code> 接口为例演示如何证明不变量。</p>
+
+                    <h3>讨论</h3>
+                    <p>Alexei Starovoitov 质疑引入两条静态分析管线是否妥当；Dwivedi 回答说采用 Rust wrapper 加 Verus 注解，编译出 BPF 字节码后再走内核验证器。David Vernet（Hung）问到 wrapper 的共性；由于时间耗尽，会话未能得出结论。</p>
+                </div>
+            </div>
+
+            <!-- 文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">发行版 / 系统安全</span>
+                    <h2>shadow-utils 口令过期功能的变更</h2>
+                    <div class="article-meta">
+                        <span>作者：Alejandro Colomar（shadow-utils 维护者）</span>
+                        <span>发布日期：2026年8月7日</span>
+                        <span><a href="https://lwn.net/Articles/1086949/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>4.20.0 版本移除了以下内容：<code>expiry</code> 命令；<code>/etc/shadow</code> 第 4 字段（最小改密天数）被忽略并移除；<code>groupmems</code>、<code>logoutd</code> 移除；DES/MD5 哈希移除，默认改为 SHA512。</p>
+
+                    <h3>依据</h3>
+                    <p>上述变更基于 NIST 800-63B rev4——该标准明确禁止周期性改密（"SHALL NOT require subscribers to change passwords periodically"）；2015 年的一篇论文也证明周期性改密的收益极小。</p>
+
+                    <h3>保留但弃用</h3>
+                    <p><code>chage</code>、<code>passwd</code>、<code>useradd</code>、<code>usermod</code> 的相关选项被保留但标记为弃用；第 3/5/6/7 字段因合规要求（例如西班牙的 CNI）暂予保留。</p>
+                    <p>对于"无最小密龄"的情况，组织应当规划淘汰周期性改密策略。</p>
+                </div>
+            </div>
+
+            <!-- 文章 6 -->
+            <div class="article" id="article6">
+                <div class="article-header">
+                    <span class="article-category">内核 / 块层</span>
+                    <h2>块层错误注入</h2>
+                    <div class="article-meta">
+                        <span>作者：Haris Iqbal</span>
+                        <span>发布日期：2026年8月12日</span>
+                        <span><a href="https://lwn.net/Articles/1086344/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>现有机制的缺陷</h3>
+                    <p><code>fail_make_request</code>（2006）只能概率性报错，且状态固定为 <code>BLK_STS_IOERR</code>；<code>should_fail_bio()</code>（2018 的 BPF 钩子）能选定 bio，但状态不可选；device-mapper 的 <code>dm-error</code>/<code>dm-flakey</code>/<code>dm-dust</code> 需要堆叠设备且状态固定。</p>
+
+                    <h3>新机制</h3>
+                    <p>Christoph Hellwig 的补丁（<code>CONFIG_BLK_ERROR_INJECTION</code>）为每个 <code>gendisk</code> 建立 <code>/sys/kernel/debug/block/&lt;disk&gt;/error_injection</code>。写入形如 <code>add,op=READ,start=1000,nr_sectors=500,status=TRANSPORT,chance=10</code> 即可增加一条规则。</p>
+
+                    <h3>实现与争议</h3>
+                    <p>钩子位于 <code>submit_bio_noacct_nocheck()</code>，调用 <code>blk_error_inject()</code>，并借助静态键（static key）优化；以 RCU 遍历规则，首个匹配项设置 <code>bi_status</code> 并调用 <code>bio_endio()</code>。零长 bio（纯 flush）暂不支持。</p>
+                    <p>BPF 争议：Hellwig 拒绝了 BPF_STRUCT_OPS 方案，认为那需要暴露内部 BTF、难以使用。该机制已合入 7.2，并新增 <code>blktests/block/044</code> 测试。</p>
+                </div>
+            </div>
+
+            <!-- 本周引述 -->
+            <div class="article" id="quotes">
+                <div class="article-header">
+                    <span class="article-category">社区 / 引述</span>
+                    <h2>💬 本周引述（Quotes of the week）</h2>
+                    <div class="article-meta">
+                        <span>编辑：Daroc Alden、Joe Brockmeier 等</span>
+                        <span><a href="https://lwn.net/Articles/1087434/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全引述</h3>
+                    <blockquote>
+                        <p>我们见过不少案例：AI 工具发现的安全 bug，随后被另一位研究者独立发现。这意味着那些不向开源项目报告 bug 的攻击者，很可能也能发现这些 bug。有鉴于此，OpenSSH 团队目前将更频繁地发布版本，以便更快地把修复送到用户手中，而不是把它们攒到下一个计划版本。</p>
+                        <p>—— <a href="https://lwn.net/ml/all/1a765b35b9ba68a2@cvs.openbsd.org">Damien Miller</a>（于 OpenSSH 10.5 发布说明）</p>
+                    </blockquote>
+
+                    <h3>发行版引述</h3>
+                    <blockquote>
+                        <p>至于对用电与用水的担忧，我建议大家去了解一下看一部 Netflix、Hulu 或 Disney+ 上的电影可能会消耗多少电和水，或者做一条牛仔裤的消耗。又或者，某人飞去参加一场 DebConf 会产生多少二氧化碳。我们应不应该担心生态可持续性？当然要！但我有时会觉得，这更像是有人为早已基于其他原因得出的立场找的借口。</p>
+                        <p>—— <a href="https://lwn.net/ml/all/anfgUPNbV1uM1hzU@mit.edu/">Ted Ts'o</a></p>
+                    </blockquote>
+                    <blockquote>
+                        <p>我并不担忧 LLM 这项"技术"本身：它不过就是数学，加上足够的训练材料，输出一大堆数字，我们借此从已有材料推断出新材料。但我坚定地站在那一派：我们谈论 LLM 技术时，不能脱离"是谁在推动它的使用、谁在做训练、怎么做、这会对我们有限的资源造成什么影响，以及这些人的经济与政治动机是什么"。</p>
+                        <p>所以我反对把"生态"讨论简化成"没那么糟，用 LLM 智能体 <duration> 时长等于买条牛仔裤"——因为我认为这类论证要么欠考虑，要么别有用心。</p>
+                        <p>—— <a href="https://lwn.net/ml/all/5742777.MHq7AAxBmi@turnagra/">Didier "OdyX" Raboud</a></p>
+                    </blockquote>
+
+                    <h3>开发引述</h3>
+                    <blockquote>
+                        <p>谢谢你的 pull request。是的，这看起来像个有用的功能，但你本不该提——我是说你真的不该提。我把那 3700 字的 PR 描述通读了一遍（我很欣赏其中贯穿全文的项目符号和加粗），天知道为什么，我还审了那些提交。提交记录上写着由 Claude 共同创作，但读了代码后，我觉得你给 Claude 的功劳还不够。我现在已经关闭了所有非白名单贡献者的 PR。没错，那份名单上只有我和我朋友 Kyla，而她基本不写代码。谢谢你的贡献。</p>
+                        <p>—— <a href="https://lake.computer/blog/help-wanted/">Lake Hope</a></p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for August 13, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1087434/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>内核开发</h3>
+                    <h4>内核发布状态</h4>
+                    <p><strong>当前开发内核是 7.2-rc7</strong>，于 8 月 9 日<a href="https://lwn.net/Articles/1087961/">发布</a>。Linus 说："我目前看不出有任何理由推迟 7.2 的发布，所以除非真的出了大问题，否则我预计它会在下周末发布。"</p>
+                    <p>该版本包含来自 2,628 名开发者的 16,223 个非合并变更集，创纪录地有 599 人为首次内核贡献者。发布历史如下：</p>
+                    <table>
+                        <thead>
+                            <tr><th>RC 版本</th><th>日期</th><th>提交数</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>v7.2-rc1</td><td>2026-06-28</td><td>14,395</td></tr>
+                            <tr><td>v7.2-rc2</td><td>2026-07-05</td><td>433</td></tr>
+                            <tr><td>v7.2-rc3</td><td>2026-07-12</td><td>475</td></tr>
+                            <tr><td>v7.2-rc4</td><td>2026-07-19</td><td>557</td></tr>
+                            <tr><td>v7.2-rc5</td><td>2026-07-26</td><td>611</td></tr>
+                            <tr><td>v7.2-rc6</td><td>2026-08-02</td><td>615</td></tr>
+                            <tr><td>v7.2-rc7</td><td>2026-08-09</td><td>500</td></tr>
+                        </tbody>
+                    </table>
+                    <p>见 <a href="https://lwn.net/ksdb/releases/v7.2/">LWN KSDB v7.2 页面</a> 了解更多细节。</p>
+                    <p><strong>稳定版更新（Stable updates）</strong>：7.1.7、6.18.43、6.6.149、6.1.181、5.15.214、5.10.263 于 8 月 6 日发布，随后 6.12.102、6.6.150、6.1.182、5.15.215、5.10.264 于 8 月 7 日发布（均仅修正单一 bug），8 月 9 日又发布 7.1.8、6.18.44、6.12.103、6.6.151。</p>
+
+                    <h3>开发</h3>
+                    <h4>Django 转向年度发布周期</h4>
+                    <p>Django Python Web 框架项目<a href="https://www.djangoproject.com/weblog/2026/aug/10/annual-release-cycle/">宣布</a>接受年度发布周期提案，从原先"短寿特性版 + 长期支持（LTS）版"交错的复杂日程，改为更简单的年度周期，每个版本支持三年。</p>
+                    <blockquote>
+                        <p>每个特性版都获得三年支持：一年常规 bug 修复，随后两年安全与数据丢失修复。"LTS"标签退休——每个特性版现在都承载同样、唯一的承诺。</p>
+                        <p>不再有 LTS 空档：不必为了一次性跨两年的变更而赶 deadline。在支持窗口内随时按你的节奏，每年升一级。任意时刻支持三个版本，给第三方包一个清晰、滚动的目标。</p>
+                    </blockquote>
+                    <p>该变更自即将到来的 Django 2028（预计 2028 年 1 月）起生效。</p>
+
+                    <h4>Bernard：GNOME Shell 的设计愿景</h4>
+                    <p>GNOME 贡献者 Tobias Bernard <a href="https://blogs.gnome.org/shell-dev/2026/08/11/gnome-shell-design-dreams/">发布博文</a>，详述设计团队对 GNOME Shell 的长期构想：</p>
+                    <blockquote>
+                        <p>其中一些我们有相对完整的计划，另一些则更模糊、需要更多研究与原型。和往常一样，这些想法能否落地取决于开发者的能力与兴趣（有时还有资金）。</p>
+                        <p>虽然每个想法都可能需要进一步讨论、原型与测试，但我们（设计团队）还是把它们汇总于此，以分享更长远的愿景，并让每个想法获得更多关注。</p>
+                    </blockquote>
+
+                    <h4>LightDM 复活：发布 1.33.0</h4>
+                    <p>显示管理器 LightDM 的 <a href="https://github.com/ubuntu/lightdm/releases/tag/1.33.0">1.33.0 版</a>发布。这是该项目<a href="https://discourse.ubuntu.com/t/lightdm-1-33-0-released/85962">四年来首个版本</a>：此前由 Canonical 赞助，近年实际上无人维护，现已转交新的社区仓库，由 Joshua Peisach 与 Neal Gompa 维护。新版包含 Qt6 支持、代码优化，以及一批此前悬而未决的修复。</p>
+
+                    <h4>QEMU 11.1 发布</h4>
+                    <p>模拟器 QEMU 的 <a href="https://www.qemu.org/2026/08/11/qemu-11-1-0/">11.1 版</a>发布，包含来自 285 名作者的 3,200+ 次提交，改进清单很长。</p>
+
+                    <h4>Rust Coreutils 0.10 发布</h4>
+                    <p>uutils 项目的 <a href="https://github.com/uutils/coreutils/releases/tag/0.10.0">Rust Coreutils 0.10 版</a>发布，重点提升与 GNU Core Utilities 的兼容性——现已通过 690 项 GNU 测试中的 645 项（0.9.0 为 625 项）。 notable 变更包括新增 <code>mv --exchange</code>、校验工具的 OpenSSL 后端、用 <code>mkdir</code>/<code>mkfifo</code>/<code>mknod</code> 创建时应用 SELinux 标签，以及若干性能与安全改进。项目还提供基于 WebAssembly 的<a href="https://uutils.org/playground/">在线 playground</a>。</p>
+
+                    <h3>杂项</h3>
+                    <h4>Software Stewardship Lab 启动</h4>
+                    <p>总部位于苏格兰的非营利组织 <a href="https://stewardshiplab.org/">Software Stewardship Lab</a> <a href="https://stewardshiplab.org/ideas/a-research-lab-for-open-source/">宣布成立</a>：</p>
+                    <blockquote>
+                        <p>我们当前的研究重点：</p>
+                        <ul>
+                            <li><strong>软件供应链安全</strong>——我们正构建一个观测台，让用户实时识别并监控全球关键开源包，包括依赖图中此前隐藏的部分。</li>
+                            <li><strong>维护者倦怠</strong>——我们关于开源倦怠的报告反响良好。我们正在做年度跟进，并撰写一份关于 AI 如何影响维护者倦怠的配套报告。</li>
+                        </ul>
+                        <p>未来，该实验室的专家将向从事关键工作的开源可持续性研究者拨付并监督资金。我们已与多所大学合作，培养下一代软件供应链专家。</p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for August 13, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1087435/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：DistroWatch Weekly（8 月 10 日）、This week in F-Droid（8 月 7 日）、This week in Fedora（8 月 10 日）、Linux Mint Monthly News（7 月）、openSUSE Tumbleweed Review of the Week（8 月 7 日）、Ubuntu Weekly News（8 月 3 日）。</p>
+                    <p><strong>开发</strong>：Emacs News（8 月 10 日）、GCC 13.4.1 / 16.2.1 Status Report（8 月 7 日）、What's cooking in git.git（8 月 5/7/11 日三期）、This Week in GNOME（8 月 7 日）、GNU Tools Weekly News（8 月 9 日）、Golang Weekly（8 月 7 日）、Last Week in Kubernetes Development（8 月 6 日）、LLVM Weekly（8 月 3/10 日）、This Week in Matrix（8 月 7 日）、OCaml Weekly News（8 月 11 日）、OpenPrinting News（8 月 11 日）、Perl Weekly（8 月 10 日）、This Week in Plasma（8 月 8 日）、PyCoder's Weekly（8 月 11 日）、Python Core Dispatch（8 月 5 日）、Weekly Rakudo News（8 月 10 日）、Ruby Weekly News（8 月 6 日）、This Week in Rust（8 月 5 日）、Wikimedia Tech News（8 月 10 日）。</p>
+                    <p><strong>会议记录</strong>：Fedora FESCo meeting minutes（8 月 11 日）、openSUSE Release Engineering minutes（8 月 12 日）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 31 日</td><td>10 月 2–4 日</td><td><a href="https://conf.gnu-tools-cauldron.org/prg26/">GNU Tools Cauldron</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 3–4 日</td><td><a href="https://pretalx.linuxdays.cz/linuxdays-2026/cfp">Linux Days 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>10 月 6 日</td><td><a href="https://forms.gle/iRK48ACWnMatihg59">Real-time Linux User Forum</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>次年 1 月 20–22 日</td><td><a href="https://2027.everythingopen.au/programme/proposals/">Everything Open</a></td><td>布里斯班，澳大利亚</td></tr>
+                            <tr><td>10 月 1 日</td><td>11 月 7–8 日</td><td><a href="https://cfp.openfest.org">OpenFest 2026</a></td><td>索非亚，保加利亚</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 14–16 日</td><td><a href="https://www.hope.net/">Hackers on Planet Earth</a></td><td>纽约，美国</td></tr>
+                            <tr><td>8 月 25–30 日</td><td><a href="https://ch2026.mini.debconf.org/">MiniDebConf and MiniDebCamp Winterthur 2026</a></td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 30 日–9 月 5 日</td><td><a href="https://2026.foss4g.org/en/">FOSS4G Hiroshima 2026</a></td><td>广岛，日本</td></tr>
+                            <tr><td>9 月 17–18 日</td><td><a href="https://git-merge.com/">Git Merge</a></td><td>里斯本，葡萄牙</td></tr>
+                            <tr><td>9 月 19–20 日</td><td><a href="https://nextcloud.com/conference-2026">Nextcloud Community Conference 2026</a></td><td>柏林，德国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td><a href="https://kernel-recipes.org/en/2025/">Kernel Recipes</a></td><td>巴黎，法国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td><a href="https://reproducible-builds.org/events/gothenburg2026/">Reproducible Builds Summit</a></td><td>哥德堡，瑞典</td></tr>
+                            <tr><td>9 月 25–27 日</td><td><a href="https://postmarketos.org/conference/">PostmarketOS and Alpine Linux Conference</a></td><td>亚琛，德国</td></tr>
+                            <tr><td>9 月 28–30 日</td><td><a href="https://indico.freedesktop.org/event/12/">X.Org Developers Conference</a></td><td>多伦多，加拿大</td></tr>
+                            <tr><td>9 月 28 日–10 月 1 日</td><td><a href="https://www.alpss.at/">Alpine Linux Persistence and Storage Summit</a></td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>9 月 30 日–10 月 1 日</td><td><a href="https://all-systems-go.io/">All Systems Go! 2026</a></td><td>柏林，德国</td></tr>
+                            <tr><td>10 月 2–4 日</td><td><a href="https://gnu-tools-cauldron.org/">GNU Tools Cauldron</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 3–4 日</td><td><a href="https://events.opensuse.org/conferences/oSAS26">openSUSE.Asia Summit 2026</a></td><td>日惹，印度尼西亚</td></tr>
+                            <tr><td>10 月 3–4 日</td><td><a href="https://www.linuxdays.cz/2026/">Linux Days 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 5–7 日</td><td><a href="https://lpc.events/event/20/">Linux Plumbers Conference 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 6 日</td><td><a href="https://realtime-linux.org/event/real-time-linux-user-forum/">Real-time Linux User Forum</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 7–9 日</td><td><a href="https://events.linuxfoundation.org/open-source-summit-europe/">Open Source Summit Europe</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 7–9 日</td><td><a href="https://events.linuxfoundation.org/embedded-linux-conference-europe">Embedded Linux Conference Europe</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 8 日</td><td><a href="https://events.linuxfoundation.org/linux-security-summit-europe/program/schedule-at-a-glance/">Linux Security Summit Europe</a></td><td>布拉格，捷克</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>本期涵盖 8 月 6 日至 8 月 12 日期间各发行版发布的大量安全公告（完整条目见 <a href="https://lwn.net/Articles/1088477/">LWN 安全公告摘要（2026年8月6日–8月12日）</a>），涉及 AlmaLinux、Debian（含 stable 与 LTS）、Fedora、Mageia、Oracle、Red Hat、Slackware、SUSE、Ubuntu。受影响软件包涵盖内核（kernel、kernel-rt）、浏览器（firefox、thunderbird、chromium）、加密库（libgcrypt、openssl、nss）、语言运行时（nodejs、python、perl、ruby）、系统工具（p11-kit、ldns、sssd）等。例如：AlmaLinux 的 ALSA-2026 系列（LibRaw、firefox、kernel、gpsd 等）；Debian 的 DSA/DLA 系列（chromium、bind9、thunderbird、wordpress 等）；Fedora 的 FEDORA-2026 系列（ImageMagick、kernel、chromium、samba 等）；Red Hat 的 RHSA 系列（8 月 12 日集中发布大量跨 EL7–EL10 的 kernel 及 kernel-rt 更新）；SUSE 的 SUSE-SU / openSUSE-SU 系列（ImageMagick、bind、ffmpeg、java-openj9 等）；Ubuntu 的 USN-8592-1（imagemagick）、USN-8626-1（systemd）等。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（8 月 5–13 日）内核相关补丁数量庞大，以下按类别择要摘录，完整列表见 <a href="https://lwn.net/Articles/1087435/">LWN Announcements 页面</a>。</p>
+
+                    <h4>内核发布</h4>
+                    <ul>
+                        <li>Linux 7.2-rc7（Linus Torvalds，8 月 9 日）、7.1.8 / 7.1.7（8 月 9 / 6 日）、6.18.44 / 6.18.43、6.12.103 / 6.12.102、6.6.151 / 6.6.150 / 6.6.149、6.1.182 / 6.1.181、5.15.215 / 5.15.214、5.10.264 / 5.10.263，以及 5.10.262-rt158（8 月 7 日）。</li>
+                    </ul>
+
+                    <h4>架构相关</h4>
+                    <ul>
+                        <li>arm64：移除未使用的大端（big-endian）支持；s390 引入 arm64 KVM。</li>
+                        <li>LoongArch：KVM 独立 vmid 支持、新增 KHO 支持与 selftests。</li>
+                        <li>RISC-V：KVM PMU 事件过滤支持；bpf/riscv 为 RV64 JIT 添加 BPF 栈参数支持。</li>
+                        <li>x86：尝试理顺 PV clocks 与 TSC 的关系；新增 RMPOPT 支持。</li>
+                        <li>s390：vfio-ap 添加实时客户机迁移支持。</li>
+                    </ul>
+
+                    <h4>核心内核</h4>
+                    <ul>
+                        <li>kfuncs / struct_ops 添加 arena 参数支持；tracing/boot 支持 eprobe、fprobe、tprobe 事件并加测试框架。</li>
+                        <li>kdump 缩减 vmcore 大小与捕获时间；BPF 引入全局 percpu 数据；proxy execution 的 Sleeping Owner Handling（v31）。</li>
+                        <li>Rust 的引用计数中断禁用与 SpinLockIrq；wprobe x86 watchpoint；workqueue 的 OwnedQueue / ScopedQueue / ScopedWork。</li>
+                        <li>BPF tracing_multi link 支持；rcu/srcu 使 call_rcu()/call_srcu() 可从任意上下文安全调用；sched proxy execution 兼容 sched_ext。</li>
+                        <li>BPF 支持至多 16 字节的聚合返回值；steal_governor 引入 preferred CPUs 与 steal 驱动的 vCPU 回退；BPF 新增 linux_binprm 用户内存访问 kfuncs。</li>
+                    </ul>
+
+                    <h4>构建系统</h4>
+                    <ul>
+                        <li>resolve_btfids 为 kfuncs 实现 BTF tags 发射；objtool/arm64 将 klp-build 移植到 arm64；perf build 新增安装构建 perf 所需开发包的目标。</li>
+                    </ul>
+
+                    <h4>开发工具</h4>
+                    <ul>
+                        <li>Page Alloc Hogger；anon mTHP collapse 测试用例；改进 khugepaged 覆盖；xsk shared-UMEM 覆盖与基础设施；firewire core 树构建 KUnit 测试；boottime tracing 测试框架；resctrl L3 缓存与 AMD MBM/MBA 测试支持。</li>
+                    </ul>
+
+                    <h4>设备驱动（择要）</h4>
+                    <ul>
+                        <li>Rockchip 平台 Synopsys DisplayPort 控制器改进；SpacemiT K3 的 UFS 主机驱动；RK3576 NPU（RKNN）使能；Sony IMX908 / IMX708 图像传感器驱动。</li>
+                        <li>Adreno 830 GPU 支持；nova-core GPU 中断与 GSP 事件投递；Apple SoC CIO（USB4/Thunderbolt）复位控制器；MediaTek T9XX WWAN 驱动。</li>
+                        <li>ath12k 扩展 TX/RX 可观测性 DP 统计；bnxt_en 添加 kTLS TX 卸载；net: mana HW 通道可靠性与加固修复；nbl（Nebulamatrix）网卡驱动。</li>
+                    </ul>
+
+                    <h4>设备驱动基础设施</h4>
+                    <ul>
+                        <li>rust: leds 添加 led classdev 抽象；rust: dma 添加单缓冲流式 DMA API；of overlay 代码学会保持 /aliases 同步；virtio 支持拥有自身 virtqueue 内存的设备；rust: usb 抽象（向 Rust 移植 usbsevseg.c）；drm 添加 DRM_MODE_ATOMIC_RESET 标志。</li>
+                    </ul>
+
+                    <h4>文件系统与块层</h4>
+                    <ul>
+                        <li>f2fs 支持设备别名动态预留/释放、支持未缓存缓冲 I/O；block 设备 NVMEM provider 支持；改进离线/只读 zone 处理；buffer 写失败时停止清除 BH_Uptodate。</li>
+                        <li>netfs 用分段 bio_vec[] 链跟踪 folios；btrfs 新增 xattrs 每 inode 压缩级别、部分同步 dirops 的 -ENOMEM 容错；nfs 现代化直接 I/O 路径；cephfs kclient 降低 mdsc->mutex 争用；erofs 为文件后端挂载共享超级块。</li>
+                    </ul>
+
+                    <h4>内存管理</h4>
+                    <ul>
+                        <li>区分 PTE 表存储与 PTE 值；引入 package-aware 加权交错；zsmalloc shrinker 感知预算；MGLRU 用 PUD 级 Bloom filter 在老化时跳过空 PUD 子树。</li>
+                        <li>无条件每-VMA 锁及清理；MAP_PRIVATE 文件支撑 folios 按匿名 pgoff 索引；Virtual Swap Space（Swap Table 版）；BPF 驱动的主动 memcg 回收；kfree_nolock() 处理 kmalloc() 对象。</li>
+                        <li>guest_memfd 就地转换支持；分层 memcg 限制；huge_memory folio 拆分清理并解除 swapcache 拆分限制；swap 休眠槽位移出 swap 缓存；移除 memcg v1 soft limit；MGLRU 修复 swappiness 行为。</li>
+                    </ul>
+
+                    <h4>网络</h4>
+                    <ul>
+                        <li>neighbour 将 arp_tbl 与 nd_tbl 命名空间化；netfilter 将 ipset 切换到 rhashtable；硬件 pacing 卸载；mptcp 乱序队列剪枝；ipv6 在 RTM_DELROUTE 中报告路由被删原因；TLS 1.3 硬件卸载；mptcp v7.3 杂项特性。</li>
+                    </ul>
+
+                    <h4>安全相关</h4>
+                    <ul>
+                        <li>audit 测量并降低 syscall 过滤开销；module_blacklist 参数扩展到内建模块；实现 LANDLOCK_RESTRICT_SELF_NO_NEW_PRIVS；PTRACE_SET_SYSCALL_INFO 添加 seccomp 跳过系统调用支持；nfsd/sunrpc 加固 netlink 监听接口。</li>
+                    </ul>
+
+                    <h4>虚拟化与容器</h4>
+                    <ul>
+                        <li>移除对 Windows Server 2012/2012R2 与 Win8/Win8.1 版 Hyper-V 的支持；KVM x86 添加 LASS 虚拟化；KVM PPC 暴露嵌套客户机 CPU 兼容模式；KVM arm64 添加 GICv5 IRS 支持。</li>
+                        <li>Bao 虚拟机监控器 IPC 与 I/O 分发驱动；MSHV 为根分区添加 SEV-SNP 支持；KVM ITS pKVM 加固；KVM TDX 启用 VM-DoS 防护；清理 KVM 时钟（第一部分）；KVM arm64 nv 实现嵌套 stage-2 反向映射；VBS/VSM-on-KVM 用 VM Planes 实现主机/客户机支持；Hyper-V 为 Linux 客户机添加半虚拟化 IOMMU。</li>
+                    </ul>
+
+                    <h4>杂项</h4>
+                    <ul>
+                        <li>perf sched latency 细化输出、单位缩放与直方图支持；perf c2c 添加函数视图；PERF_SAMPLE_BUILD_ID_OFFSET；perf arm64 支持数据类型剖析；rust 添加 ID 区间预留支持与 #[macro_export_scoped]；coredump 允许在 coredump socket 上创建稀疏核心转储。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1087432/" target="_blank">LWN.net Weekly Edition for August 13, 2026</a></p>
+            <p>更新时间：2026年8月21日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
