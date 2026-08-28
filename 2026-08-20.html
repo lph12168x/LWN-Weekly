@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年8月20日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年8月20日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <!-- 期刊导航 NAV-START -->
+        <nav class="nav-bar" aria-label="期刊导航">
+            <a class="nav-btn" href="index.html">🏠 主页</a>
+            <a class="nav-btn nav-current" href="2026-08-20.html">📰 最新</a>
+            <a class="nav-btn" href="2026-08-13.html">← 上一个</a>
+            <span class="nav-btn nav-disabled">下一个 →</span>
+            <span class="nav-current-label">2026年8月20日</span>
+        </nav>
+        <!-- 期刊导航 NAV-END -->
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">Debian 就 LLM 使用投票：八项提案</a></li>
+                    <li><a href="#article2">用 pathlib 表示 Python 路径</a></li>
+                    <li><a href="#article3">可引导构建：方法与缘由</a></li>
+                    <li><a href="#article4">Fedora 为 AF_ALG 的终结做准备</a></li>
+                    <li><a href="#article5">Arm 的 128 位页表</a></li>
+                    <li><a href="#article6">BPF、持续测试与稳定内核</a></li>
+                    <li><a href="#article7">7.2 内核开发统计</a></li>
+                    <li><a href="#quotes">💬 本周引述</a></li>
+                    <li><a href="#briefs">📝 简讯</a></li>
+                    <li><a href="#announcements">📢 公告</a></li>
+                </ul>
+            </div>
+
+            <!-- 文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">发行版 / Debian · AI 治理</span>
+                    <h2>Debian 就 LLM 使用投票：八项提案</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年8月19日</span>
+                        <span><a href="https://lwn.net/Articles/1088565/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Debian 项目正在就"是否允许使用大语言模型（LLM）为项目做贡献"进行投票。由 Matthias Geiger 于 7 月底发起的[第一项提案](https://lwn.net/ml/all/til24c.3ns3jl2mkmzmn@riseup.net/)，明确禁止任何由 LLM 或在其辅助下生成的贡献进入 Debian。这一提案引发了一场激烈讨论，随后涌现出大量替代方案。如今 Debian 开发者正在就[总计八项提案](https://www.debian.org/vote/2026/vote_002)投票，范围从"全面禁止 LLM 辅助贡献"到"明确允许"，外加一个标准的"以上都不是（none of the above）"选项——若选择它，Debian 将没有任何成文的官方政策。</p>
+
+                    <h3>Debian 与 AI</h3>
+                    <p>虽然其他发行版——例如 <a href="https://docs.fedoraproject.org/en-US/council/policy/ai-contribution-policy/">Fedora</a> 和 <a href="https://wiki.gentoo.org/wiki/Project:Council/AI_policy">Gentoo</a>——已经定下了关于 AI 辅助贡献的政策，Debian 却迟迟未作决定，尽管相关讨论并不少。多年来这个话题数次被提起，却始终没有结论。</p>
+                    <p>2024 年，Tiago Bortoletto Vaz 曾[担心](https://lwn.net/ml/all/3qxsesyoouxh2h6fodosnln4wsyl3tpmnbcu6pqzekqkz6k577%40a2gos5jbaowf/) Debian 已经"在承受 AI 生成内容带来的负面后果"，希望在就此提出一般决议（GR）之前先征集开发者意见。讨论最终让他[认为](https://lwn.net/ml/all/51fc56869829fe76d00c610238f9b425@debian.org/)项目在生成式 AI 的官方立场上"远未达成共识"，于是没有继续推进 GR。</p>
+                    <p>2026 年 2 月，Lucas Nussbaum [重新发起讨论](https://lwn.net/ml/all/aZY_P6jA8cGYkev2%40grub.nussbaum.fr/)，提议允许 AI 辅助贡献。他说，那些承认使用 AI 的人正遭到"一群激烈排斥 AI 的人"的攻击，希望在 Debian 继续前进时找到一条中间道路。在他看来，讨论"总体文明且有趣"，甚至觉得也许根本不需要 GR。</p>
+
+                    <h3>是时候了</h3>
+                    <p>上个月，Geiger 最终决定还是需要一个 GR。他说，是时候"让 Debian 就生成式 AI 与 LLM 的使用表态"了。由于话题已被详细讨论过，他选择直接正式提交 GR 提案，而非像其他人那样先试探水温。一旦闸门打开，提案便如洪水般涌来。除去"以上都不是"，总共有八项提案，简述如下：</p>
+                    <ol>
+                        <li><strong>通过《社会契约》禁止向 Debian 贡献 LLM 内容</strong>（Geiger 的提案）：修订 <a href="https://www.debian.org/social_contract">Debian 社会契约</a>，明确禁止任何由 LLM 或其他生成式 AI 工具创建的、对 Debian 的贡献。它不适用于使用 LLM 的上游项目（因此打包一个 AI 相关开发的应用不受影响）。</li>
+                        <li><strong>附带条件地允许 AI 辅助贡献</strong>（Nussbaum 的提案）：明确允许 AI 辅助贡献，前提是贡献者遵守一系列条件，包括为技术正确性、安全性、许可证合规等承担全部责任；并"建议但不强制"在"贡献的相当部分由工具生成或实质性辅助"时进行披露，披露形式由贡献者自定。</li>
+                        <li><strong>在可行范围内拒绝 LLM，并更新行为准则</strong>（Ian Jackson 的提案）：修订 <a href="https://www.debian.org/code_of_conduct">行为准则</a>，禁止用 LLM 创建"发给人类的消息"——例如 bug 报告、邮件、Salsa 上的讨论，乃至聚合在 Planet Debian 上的博客文章；请求贡献者"避免在 Debian 工作中使用 LLM"，但也承认完全禁止 LLM 输出并不现实。</li>
+                        <li><strong>接受 Debian 特定工作的 AI 贡献</strong>（Pierre-Elliott Bécue 的提案）：明确允许由生成式 AI 工具创建或与其协作完成的贡献，并附一组将责任归于提交者的条件。</li>
+                        <li><strong>负责任地使用生成式 AI</strong>（Marc Haber 的提案）：Debian 发表声明，立场既不背书也不禁止在 Debian 中使用生成式 AI 工具，并称这类工具的使用"不豁免于、也不额外受制于超出 Debian 贡献者既有标准之外的特殊规则"。</li>
+                        <li><strong>对生成式 AI 采取谨慎态度</strong>（Tobias Frost 的提案）：若获采纳，项目发表声明，立场是鼓励贡献者"在可行时避免使用生成式 AI，优先选择人类作者身份、协作与技术理解，而非 AI 生成输出"；但并不禁止生成式 AI，并确认项目信任开发者坚守 Debian 的"高质量价值观"。</li>
+                        <li><strong>Debian 由人类创造</strong>（Gard Spreemann 的提案）：受 <a href="https://gcc.gnu.org/ai-policy.html">GCC 项目的 AI 政策</a> 与 Rust 语言团队的 <a href="https://forge.rust-lang.org/policies/llm-usage.html">策略</a> 启发。它不允许生成式 AI 工具的输出作为直接贡献，但允许贡献者将这些工具"作为[辅助]工具来探索、研究、分析、批判等"。</li>
+                        <li><strong>避免使用 LLM：气候破坏是决定性因素</strong>（Holger Levsen 的提案）：Debian 发表立场声明，出于环境以及"重大的伦理、法律、技术与社交顾虑"反对 LLM。但它承认 LLM 的使用"即便困难也几乎不可能被检测"，因此这仅是一份立场声明，并不禁止将 LLM 用于 Debian 贡献。</li>
+                    </ol>
+                    <p>Debian 采用 <a href="https://en.wikipedia.org/wiki/Condorcet_method">孔多塞法（Condorcet method）</a> 投票，以找出多数偏好选项，因此投票者将按偏好排序而非只能选一项。由于 Geiger 的提案会修改《社会契约》，它需要三比一的多数才能通过。</p>
+
+                    <h3>讨论</h3>
+                    <p>如今参与开源项目，几乎不可能不沉浸在关于 LLM 使用的辩论中。Debian 讨论中的立场与论点对多数读者来说想必耳熟能详。例如关于代码版权，Geiger 认为 LLM 输出的版权状态"存在巨大不确定性"，他不明白 LLM 生成的代码如何符合 <a href="https://www.debian.org/social_contract#guidelines">DFSG（Debian 自由软件指南）</a>："如果你让某个函数被生成，而你无法 100% 确定自己是否因训练数据而负有任何许可证义务。"</p>
+                    <p>另一些人则不被说服，认为 LLM 对 Debian 构成风险或违反 DFSG。Russ Allbery [指出](https://lwn.net/ml/all/87ik66kgm9.fsf@hope.eyrie.org/)，包括内核在内的许多 Debian 上游项目"已经认定这些顾虑都无关紧要，决定无视围绕 LLM 输出的所有许可问题"，大势已去。Ted Ts'o [说](https://lwn.net/ml/all/amF9Zk40oBJ3wUVX@mit.edu/)，他"非常乐意证明我相信这里不存在版权问题"，并认为围绕 LLM 输出的版权不确定性，并不比那些可能在 <a href="https://stackoverflow.com/">Stack Overflow</a> 搜索示例后写代码的人更大。</p>
+                    <p>质量（或质量缺失）也是被深入探讨的话题。Bécue 的早期草案曾明确禁止用 AI 助手来推送提交或上传软件包；Nussbaum [抱怨](https://lwn.net/ml/all/amHAOAfFq4PoC7I9@grub.nussbaum.fr/)这给个人工作流加了武断限制。Bécue [回应](https://lwn.net/ml/all/87ecgtk85p.fsf@debian.org/)说他每天都在用 LLM，但相信"工具越自动化、节奏越快，就越需要安全网"，他并非主张人类不做低质量工作，而是想阻止自动化系统推送更大批量的低质量内容。Haber [反驳](https://lwn.net/ml/all/amI8v_ddbmJG71bJ@torres.zugschlus.de/)道："如果我们反正要产出垃圾，为什么不让我们在产出垃圾时得到辅助？"</p>
+                    <p>然而 Matthias Urlichs 并不认同 Bécue 的质量顾虑。他[说](https://lwn.net/ml/all/3847f107-f59a-4a13-9e2a-3f6f07cae401@urlichs.de/)自从让 LLM 帮忙打包，自己的打包质量大幅提升，并怀疑 Debian 不会看到多 100 倍的垃圾。</p>
+
+                    <h3>编译器与计算器</h3>
+                    <p>Ts'o [评论](https://lwn.net/ml/all/amNuy61exc4fa9Wr@mit.edu/)了人们对"依赖 LLM 的人忘记如何写代码"的担忧。他承认计算器导致能心算的人变少，编译器也确实让会写汇编的人减少，"但我认为这更多是关于人们对某些不再那么重要的技能不再熟练，而非某种更笼统的'认知衰退'论断。"</p>
+                    <p>Adrian Bunk 以 Debian 的 <a href="https://www.man7.org/linux/man-pages/man7/debhelper.7.html">debhelper</a> 打包工具为例，指出 Debian 开发者中明显缺乏对打包内部机制的了解，"常常不知如何调试和修复自己软件包的问题"。Bunk 与 Ts'o 把这些技能流失的例子作为支持而非反对使用 LLM 的论据。不过 Bécue 仍不被说服。</p>
+
+                    <h3>环境影响</h3>
+                    <p>LLM 的环境影响是讨论中的主导主题。Bas Wijnen [说](https://lwn.net/ml/all/fa69b7c0-c1a8-4386-b27b-b8bd16e1ea17@debian.org/)他无法理解，别人既认同 LLM"摧毁我们的生态系统"，却又能得出"这不算决定性因素"的结论。Nussbaum [回应](https://lwn.net/ml/all/anyUL-S4XnXY5ebF@grub.nussbaum.fr/)说他并非无视气候变化，但认为单独挑出 LLM"听起来像是在针对 AI，而非一场关于气候影响、 reasoned 的讨论"。</p>
+                    <p>在 Ts'o 一条关于"免费啤酒式 LLM"的附言中，他暗示对环境的担忧不过是"为早已基于其他原因得出的立场找的借口"。Didier 'OdyX' Raboud [回应](https://lwn.net/ml/all/5742777.MHq7AAxBmi@turnagra/)称这类论证"要么考虑不周，要么居心不良"，他担忧的不是单次查询的生态影响，而是整个 LLM 行业的影响。</p>
+                    <p>迄今尚不清楚数十封开发者邮件消耗的能量，比请 LLM 帮忙打包是多还是少；但清楚的是，讨论中几乎没有人改变立场。</p>
+
+                    <h3>投票</h3>
+                    <p>Debian 此前也处理过分裂性决定。投票期从 8 月 15 日开始，到 8 月 28 日结束。据[计票表](https://vote.debian.org/~secretary/gr_llm/)，在 1000 多名有资格投票者中，已有 130 多人投了票。无论哪个选项胜出，都希望项目长远而言因此变得更好。</p>
+                </div>
+            </div>
+
+            <!-- 文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">开发工具 / Python</span>
+                    <h2>用 pathlib 表示 Python 路径</h2>
+                    <div class="article-meta">
+                        <span>作者：Jake Edge</span>
+                        <span>发布日期：2026年8月19日（PyCon US 2026 报道）</span>
+                        <span><a href="https://lwn.net/Articles/1088565/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在 PyCon US 2026 的演讲开头，Trey Hunner 的目标是让听众停止用字符串表示文件系统路径，转而使用 <a href="https://docs.python.org/3/library/pathlib.html">pathlib</a>。对长期 Python 用户而言这是个不小的请求，因为基于字符串的路径一直很普遍——而且大体上能用。但正是那个"大体上"，让 Hunner 想看到改变。</p>
+
+                    <h3>字符串与路径</h3>
+                    <p>Python 历史上大部分时间路径都用普通字符串表示，这能工作且会永远工作，但有问题。十多年前，Python 3.4 基于 <a href="https://peps.python.org/pep-0428/">PEP 428</a> 引入了 pathlib 来清理局面。字符串路径的问题包括：pathlib 的标准库替代方案难找且用起来别扭，而字符串路径容易滋生 bug，也难以把路径与其他字符串区分开。</p>
+                    <p>他回顾到 2016 年许多人还在用 Python 2.7 时，标准库里处理路径的有四个模块：<code>os</code>、<code>os.path</code>、<code>glob</code>、<code>shutil</code>。他认为 Python 标准库里有两个"杂物抽屉"：<code>os</code> 和 <code>sys</code>。处理路径的函数散落在 <code>os</code>、<code>os.path</code>、<code>glob</code>、<code>shutil</code> 各处，并不好找。</p>
+                    <p>他展示了三段 Django 项目代码，都是为文件目录的同级的 <code>templates</code> 目录设路径变量：</p>
+                    <pre><code>BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")</code></pre>
+                    <p>以及用字符串切分的版本：</p>
+                    <pre><code>BASE_DIR = os.path.abspath(__file__).rsplit("/", maxsplit=2)[0]
+TEMPLATES_DIR = BASE_DIR  + "/templates"</code></pre>
+                    <p>后者存在可移植性问题：Windows 用 <code>\</code> 作路径分隔符。即使用 <code>os.sep</code> 也谈不上好读。</p>
+                    <p>他还提到"字符串类型化代码（stringly typed code）"问题——本有更合适的类型却用字符串传递数据。用 <a href="https://docs.python.org/3/library/datetime.html">datetime</a> 对象代替格式字符串能获得有效性保证。</p>
+                    <p>用 <a href="https://docs.python.org/3/library/pathlib.html#pathlib.Path">Path</a> 对象可以改变这一点：</p>
+                    <pre><code>from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+TEMPLATES_DIR = BASE_DIR / "templates"</code></pre>
+                    <p><code>resolve()</code> 把 Path 变成绝对路径，<code>parent</code> 解析为其父目录，斜杠 <code>/</code> 运算符用于拼接两个路径。相比嵌套调用的 <code>os.path</code> 版本，Path 版本链式调用更自然。对使用类型注解的代码，Path 还能让类型检查器发现字符串与路径混淆的问题。</p>
+
+                    <h3>使用 pathlib</h3>
+                    <p><code>Path()</code> 构造函数接受路径字符串表示，返回 <code>PosixPath</code> 或 <code>WindowsPath</code>（取决于底层系统），两者支持相同操作，仅路径规范化方式不同。Path 对象有 20 多个有用方法、6 个属性（如 <code>name</code>），以及两个类方法（<code>Path.cwd()</code>、<code>Path.home()</code>）。</p>
+                    <p>起初用户常需要把 Path 转成字符串，但如今越来越多内置函数和标准库模块已支持 Path——"几乎每个接受文件路径的 Python 工具也都接受 Path 对象"。Django、pandas、pytest 等第三方包也都接受。创建目录用带 <code>parents</code> 标志的 <code>mkdir()</code>；复制文件用 Python 3.14 新增的 <code>copy()</code> 与 <code>copy_into()</code>。</p>
+                    <p>开始使用 pathlib 只需把指定路径的字符串传给 <code>Path()</code> 构造函数。Path 对象可用 <code>joinpath()</code> 或斜杠运算符拼接文件名。由于 PEP 519（<a href="https://peps.python.org/pep-0519/">"添加文件系统路径协议"</a>）在 Python 3.6 引入，任何实现 <code>__fspath__()</code> 方法的"类路径对象"都能被 <code>open()</code> 等接受。Hunner 认为 pathlib 很好，"但如果你不喜欢，pathlib 之外还有一整套类路径对象的生态"。</p>
+
+                    <h3>继承与扩展</h3>
+                    <p>自 Python 3.12 起，类可以通过继承扩展 <code>pathlib.Path</code> 的功能：</p>
+                    <pre><code>import os
+import pathlib
+
+class BetterPath(pathlib.Path):
+    def chdir(self):
+        os.chdir(self)</code></pre>
+                    <p>若要让子类用于存储元数据的属性传播到派生的 Path 对象（如 <code>parent</code>），可重写 <code>with_segments()</code> 方法。</p>
+
+                    <h3>常见错误</h3>
+                    <p>一是历史遗留：Python 3.4 时打开文件通常用 Path 的 <code>open()</code> 方法，但 PEP 519 后内置 <code>open()</code> 已接受类路径对象，故他认为应避开 Path 的 <code>open()</code> 方法。二是没必要地把 Path 转成字符串——用 f-string 打印路径时已隐式转换，"如果你觉得需要把路径转成字符串，你大概并不需要"。三是 Path 构造函数本就接受多段字符串，不必先为一段建 Path 再用 <code>joinpath()</code> 或斜杠拼接。</p>
+                    <p>关于"pathlib 慢"的抱怨，他认为大多言过其实："pathlib 在某些操作上确实可能更慢，但可读性有时值得一点性能代价。"在 40 万个文件上，<code>os.walk()</code> 与 <code>Path.walk()</code> 都约 1 秒；把字符串转回 Path 对象才让测试涨到 2.22 秒。多数路径操作不在紧凑循环里，"真正重要时再优化"。</p>
+                    <p>他总结：pathlib 不只是一个不同 API，而是承认文件路径"重要到值得拥有自己的数据类型"。</p>
+                </div>
+            </div>
+
+            <!-- 文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">安全 / 可复现构建</span>
+                    <h2>可引导构建：方法与缘由</h2>
+                    <div class="article-meta">
+                        <span>作者：Jake Edge</span>
+                        <span>发布日期：2026年8月17日（FOSSY 2026 报道）</span>
+                        <span><a href="https://lwn.net/Articles/1088565/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在 FOSSY 2026 的"工具链与其他开发工具"分会场，Timothy Sample 介绍了<a href="https://bootstrappable.org/">可引导构建（bootstrappable builds）</a>。它与更广为人知的<a href="https://reproducible-builds.org/">可复现构建</a>是近亲，但 LWN 在两年前也曾[探讨过该话题](https://lwn.net/Articles/983340/)。简而言之，可引导构建从一个微小程序出发，它能构建另一个稍大的程序，后者再构建下一个，如此递进，直到整个现代 Linux 用户空间都从一颗小种子生长出来——最终得到代码来源完全可溯的结果，不同于今天的典型 Linux 用户空间。</p>
+                    <p>Sample 问听众是否听过可引导构建。他说自己约十年前开始使用 <a href="https://guix.gnu.org/">GNU Guix</a>（他读作"geeks"）时走上了这条路。Guix 与 <a href="https://nixos.org/">Nix</a> 类似，系统中所有软件都表示在一个"派生图（derivation graph）"中，描述如何构建每个程序及其输入。以 Python 程序为例：它需要 Python 运行，而 Python 是 C 程序，需要 C 编译器，而 C 编译器又由某种语言写成……"于是你会想，到底谁编译了我编译器的编译器的编译器，这要到哪里才停？"</p>
+                    <p>对 Debian 这样的系统，停在某人上传到仓库的一个 C 编译器二进制上；对 Guix，最初的止境是一个 250MB 静态链接的 GNU 用户空间程序块。它能被可复现地构建，但"代码都从哪来"并不清晰，这让 Guix 开发者不满意。</p>
+
+                    <h3>可引导（Bootstrappable）</h3>
+                    <p>可引导构建的基本思想是构建一套系统，而不依赖任何预构建的产物。"我们能否从零走到今天，而不必假设这些已经为我们构建好的产物存在？"做酸奶的经典配方需要一些酸奶起头，正如今天构建 C 编译器通常从一个已有的 C 编译器二进制开始。Linker 们开玩笑说"我们基本是用从贝尔实验室带来的 Dennis Ritchie 的酵头做 C 编译器"。</p>
+                    <p>可复现构建让人更确信"实际运行的二进制对应源码"。可引导构建处理的是另一种失效模式——它能防范 Ken Thompson 在图灵奖演讲 <a href="https://dl.acm.org/doi/epdf/10.1145/1283920.1283940">《对信任的反思》（Reflections on Trusting Trust）</a> 中描述的问题：编译器二进制里可能藏着对登录程序的后门，源码里看不见。任何自托管的程序都可能中招。他准备演讲时，同行给他看了一篇新<a href="https://arxiv.org/pdf/2607.24888">论文</a>，展示了对 NixOS 上 <code>strip</code> 程序的实际攻击，"几乎无形地从源码分析中隐藏地后门了系统上几乎所有程序"。这正是可引导构建要挫败的攻击。</p>
+                    <p>除安全角度，它也有软件自由的意义：知道源码对应运行中的程序很重要。处理好引导的最佳方式是未雨绸缪——在编译器自托管前，通常用另一种语言写成；保留该代码并维护，就能确保二进制中没什么被藏起来。<a href="https://www.gnu.org/software/guile/">GNU Guile</a> 就保留了 C 实现用于引导其编译器；<a href="https://www.gnu.org/software/make/">GNU Make</a> 除 makefile 外还有备用 shell 脚本。</p>
+                    <p>对于只支持自托管的工具，社区用"考古挖掘"回到非自托管版本，再沿历史逐个版本推进到现代工具。另一种做法是"专门打造新工具"，正如 <a href="https://github.com/thepowersgang/mrustc">mrustc</a>——用于引导 Rust：目前从 C++ 写的 mrustc 构建 Rust 1.54/1.56，现代 Rust 是 1.97，中间几乎每个版本都得构建，相当慢（有人花三天在 Arm 笔记本上构建）。</p>
+
+                    <h3>项目</h3>
+                    <p>Guix 的种子如今约 256 字节，而非 250MB，由名为 <code>hex0</code> 的程序构成，能"层层构建，最终到达 GCC 2、GCC 4 和现代 GCC、现代 Guile 等工具"。但仍有保留：静态链接的 Guile 仍被用于"做一大堆事"，"绝对是作弊"，但他计划修复。</p>
+                    <p>另一常令人失望之处是：没有引导内核的方案。Guix 假设已有内核，"它从虚无引导整个用户空间，但内核不在讨论范围内"。相关项目 <a href="https://github.com/fosslinux/live-bootstrap">live-bootstrap</a> 用 Guix 的许多相同工具，但推进更快，已探索用 <a href="https://www.fiwix.org/">Fiwix</a> 内核引导。它列出了 <a href="https://github.com/fosslinux/live-bootstrap/blob/master/parts.rst">182 步流程</a> 来引导系统（不含 Rust、Go，仅是现代 GNU/Linux 基础系统）。</p>
+                    <p><code>hex0</code> 把十六进制文本串变成带这些字节的二进制，进而构建 <code>hex1</code>、<code>hex2</code>，再到能用汇编助记符的 <code>M0</code>，再到"几乎像 C"的 <a href="https://github.com/oriansj/m2-planet">M2-Planet</a>，随后切换到 <a href="https://www.gnu.org/software/mes/">GNU Mes</a>（用 M2-Planet 方言写的 Scheme 解释器，带 Meslibc 与 MesCC），进而构建 <a href="https://bellard.org/tcc/">Tiny C Compiler（TCC）</a>，再用 TCC 构建现代开发工具。</p>
+
+                    <h3>Germ</h3>
+                    <p>Sample 在做的另一种方案叫 <a href="https://git.ngyro.com/germ/tree/README?id=dd840f291cc26f71e99cc859f25a63ecf9839ddf">Germ（或 Germ Lisp）</a>。他指出既有机制从 C 到 Scheme 再回 C，绕一圈最终到基于 Scheme 的 Guix。"但一个原始的 Lisp 解释器并不比一个原始汇编器复杂多少。"Germ 约 2.25KB，是一个能运行"几乎 Scheme"的二进制——刚好够运行一个用 Scheme 写的汇编器，再构建第二阶段"有点像 Scheme 解释器"的东西。它用 MesCC 编译 C，并带一个 Scheme shell。Sample 的幻灯片就是用 Germ 在他的笔记本上运行的（字体来自 Symbolics Lisp 机）。</p>
+                    <p>Germ 概念上简单，但最大问题不出所料是性能——他用 1950 年代原始 Lisp 解释器的方式、用汇编语言写 Scheme，"无法动用所有现代技术"。在函数调用微基准上 Germ "技术上比 Mes 快"，但运行真实程序时 Mes 快得多（Germ 几乎所有东西都跑在 Scheme 里）。在 Germ 上编译 Mes 约 140–150 秒，而 Mes 自编译约 100 秒。此外 Germ 目前仅 x86_64，不如能在 Arm 与 RISC-V 上运行的 Mes 可移植；还有"人们就是讨厌括号"的问题。</p>
+
+                    <h3>未来</h3>
+                    <p>他希望把 Germ 以"对所有人兴奋的方式"集成进 Guix，取代静态链接的 <code>%bootstrap-guile</code>。他还想提升 Germ 性能——把一些循环构造移入汇编是低垂果实，但"像创可贴"，或许该直接写个编译器。他也有 RISC-V 移植的初步工作。</p>
+                </div>
+            </div>
+
+            <!-- 文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">发行版 / 内核加密</span>
+                    <h2>Fedora 为 AF_ALG 的终结做准备</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>发布日期：2026年8月18日</span>
+                        <span><a href="https://lwn.net/Articles/1088565/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Linux 内核面向 <a href="https://docs.kernel.org/crypto/userspace-if.html">加密 API</a> 的用户空间接口 <code>AF_ALG</code>，与近期多起高调安全问题（包括 Copy Fail 及其后续漏洞）相关。它已于今年早些时候被<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a67afb1884ba">弃用</a>。Eric Biggers 等内核开发者一直在[努力将其从内核移除](https://lwn.net/Articles/1077427/#alf)。有鉴于此，Fedora 项目计划在下一个版本中限制 <code>AF_ALG</code> 的使用，以推动剩余的用户为最终移除做好准备。</p>
+
+                    <h3>告别 AF_ALG</h3>
+                    <p>2010 年由加密子系统维护者 Herbert Xu <a href="https://lwn.net/Articles/410536/">添加</a> <code>AF_ALG</code> 时，允许用户空间程序向内核请求加密操作，既受欢迎又有争议——Xu 设计的初衷是让用户空间访问硬件加密加速器以提升性能。Christoph Hellwig 当时就[认为](https://lwn.net/Articles/410850/)这是计算密集代码，"除非绝对必要（如内核消费者），否则不该待在内核空间"，且 CPU 正获得" proper 指令"做加密，用户空间 API 更没用。</p>
+                    <p>回看，添加 <code>AF_ALG</code> 确实是个坏主意——但不一定是 critics 当时说的理由。Biggers 在记录弃用的补丁中[指出](https://lwn.net/ml/all/20260430011544.31823-1-ebiggers@kernel.org/)：</p>
+                    <blockquote>
+                        <p>AF_ALG 几乎完全没必要，而且暴露了巨大的攻击面，扛不住现代漏洞发现工具。[...] 这不可持续，尤其 LLM 已加速了漏洞涌入的速度。投入这东西的精力，与它实际使用的少数程序极不相称，而那些程序用用户空间代码反而更好。</p>
+                    </blockquote>
+                    <p>移除的时机已到，但内核开发者必须谨慎，避免破坏依赖它的用户空间程序。知名用户空间程序 <a href="https://gitlab.com/cryptsetup/cryptsetup/">cryptsetup</a>（用于配置 LUKS 等磁盘加密）就用 <code>AF_ALG</code>；其 2.8.7 发布说明警告，若 <code>AF_ALG</code> 缺失，"在所需算法（或加密模式）未实现于用户空间库时，可能造成严重的兼容性问题"，特别点名 Serpent 与 Twofish 密码在多个用户空间库中缺失。</p>
+
+                    <h3>通用发行版正在这样做</h3>
+                    <p>Justin Forbes 与 Peter Robinson 为 Fedora 45 提出了"<a href="https://fedoraproject.org/wiki/Changes/Disable_CRYPTO_USER_API">在内核中禁用加密用户空间 API（第一阶段）</a>"变更。提案指出 <code>AF_ALG</code> 在内核中已弃用，"其部分功能在 7.2 周期早期就被主动移除"。它建议限制 <code>AF_ALG</code> 在 Fedora 45 中的使用，"以便我们能有控制地结束支持"。提案称已知的 <code>AF_ALG</code> 用户不多，"影响应最小"：cryptsetup、<a href="https://archive.kernel.org/oldwiki/iwd.wiki.kernel.org/">iNet Wireless Daemon（iwd）</a>、以及被 <a href="https://github.com/smuellerDD/libkcapi">dracut</a> 使用的 <a href="https://github.com/smuellerDD/libkcapi">libkcapi</a>。</p>
+                    <blockquote>
+                        <p>第一阶段用上游即将落地（大概在 7.3）的补丁，把该 API 的使用限制到已知应用。这让 Fedora 能在上游彻底废弃该接口前，识别出未知用户并从容应对，给用户一个更优雅的过程，而非毫无预告地抽走地毯。</p>
+                    </blockquote>
+                    <p>上游补丁新增了 sysctl 旋钮 <code>af_alg_restrict</code>，三个取值：0 不限制、1 受限功能、2 完全禁用。从 Linux 7.3 起默认值设为 <code>1</code>：为非特权进程（如 iwd、bluez、iproute2）启用受限算法允许列表，为特权进程启用更长的列表。Biggers 称"已考虑到 iwd 和 bluez 等常见用例"，并验证 iwd 在新默认下仍工作。</p>
+                    <p>Fedora 变更提案的应急方案是：若问题太多，在 Fedora 45 发布前重新启用 <code>AF_ALG</code>。假定是 Fedora 用户不会注意到。</p>
+
+                    <h3>讨论</h3>
+                    <p>在 Fedora devel 邮件列表讨论中，Ondrej Kozina [表示](https://lwn.net/ml/all/548b5c22-2d0b-43df-bd46-c1aa471d1d17@redhat.com/)不理解既然 <code>AF_ALG</code> 已在从内核移除，为何还需要此变更。Robinson [回应](https://lwn.net/ml/all/CALeDE9MBbpRTgBhS5QZOXCHTBnYXdADKTr4j-kzAUr0G-vdYPg@mail.gmail.com/)有几个原因：一是告知即将到来的移除，让 Fedora 用户知晓；二是确保在发布边界而非周期中途做破坏性变更——Fedora 45 将随 7.2 内核发布，之后转到 7.3。Kozina 仍[反对](https://lwn.net/ml/all/b2b796c5-80da-49a0-b789-7d40c5b49dfd@redhat.com/)在无替代时关闭 <code>AF_ALG</code>，抱怨 cryptsetup 对某些密码需 <code>CAP_SYS_ADMIN</code>。</p>
+                    <p>Barry Scott 说自己树莓派 4 上按"互联网建议"配置的 LUKS 2 保险库用了会受影响的密码，"显然我得在升级到 f45 前迁移到受支持的密码"。Ian McInerney 问这对 4 月发布的 Fedora 44 意味着什么；Forbes [回应](https://lwn.net/ml/all/CAFxkdAoju_hV4sYHAdzTrJU08hnhToboxF7KeHsLSxBT6kZWGw@mail.gmail.com/)他有办法为特定 Fedora 版本增删补丁，故 Fedora 44 仍会拿到 7.2 而不带 <code>AF_ALG</code> 限制补丁。</p>
+                    <p><a href="https://docs.fedoraproject.org/en-US/fesco/">Fedora 工程指导委员会（FESCo）</a>以 5 票赞成、0 票反对[批准](https://forge.fedoraproject.org/fesco/tickets/issues/3667#issuecomment-1263116)了该变更。Fedora 45 的 beta 计划于 9 月 15 日。限制 <code>AF_ALG</code> 是否会给用户带来诸多麻烦，还是平静收场，值得关注。</p>
+                </div>
+            </div>
+
+            <!-- 文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">内核 / 内存管理</span>
+                    <h2>Arm 的 128 位页表</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年8月13日</span>
+                        <span><a href="https://lwn.net/Articles/1088565/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>处理器页表项（PTE）的大小直接限制了它能访问的物理内存量。32 位时代上限是 4GB；扩展到 64 位后，一些 Arm 系统能用 56 位访问高达 72PB 内存。所以 Arm 架构正演进支持更大的 PTE 令人意外。Anshuman Khandual 的<a href="https://lwn.net/ml/all/20260729122452.3797443-1-anshuman.khandual@arm.com">补丁集</a>增加了对 128 位 PTE 的支持，但谁会受益尚不完全清楚。</p>
+                    <p>PTE 中最受关注的是物理地址——底层项是内存实际地址，高层项是下一级表的地址。并非所有位都存地址：最低位对应虚拟地址中的页内偏移，可用于其他目的。在现代 64 位 Arm（56 位地址、4096 字节页）上，PTE 最多 44 位表示物理地址，12 位用于内务。把 PTE 扩到 128 位显然能存更多信息，但代价是页表大小翻倍。对依赖大页获得性能的工作负载，代价可能痛：64 位 PTE 的 2MB PMD 级大页降到 128 位时的 1MB，PUD 级大页从 1GB 缩到 256MB（因有两级页表被消除，差四倍）。</p>
+
+                    <h3>新格式</h3>
+                    <p>扩到 128 位的动机要看新格式。底部级 PTE 中地址部分（位 12–55）仅 44 位长，加 12 位偏移，最大地址仍是 56 位，与 64 位 PTE 相同——所以扩大可寻址内存范围并非眼前目标。但注意所有保留位（灰色无标签的位）：最高有效地址位之上有 35 个保留位，为未来扩展地址字段留了空间。</p>
+                    <p>PTE 中有 10 位完全不被硬件解释，留给软件使用——是 64 位 PTE Arm 系统上 5 位的两倍。多出的 5 位看似不多，但内核终应能善用于内存管理。</p>
+                    <p>位 109 和 110 是"跳过级别（SKL）"字段，出现在所有页表级别，控制页表遍历方式。通常页表层级严格固定；唯一例外是大页——在 PMD 项设一位即可表示整个 2MB 为单一页。SKL 把这一机制一般化：它能指明查找过程的下一步是大页，即便那只是页表层级中的另一级而非最后一步。这似乎为把大页用于页表自身打开了门，有望加速地址转换、减少 TLB 占用。</p>
+
+                    <h3>内核改动</h3>
+                    <p>支持 128 位 PTE 的内核改动相对较小，主要是描述各字段与位的一组宏定义。最麻烦的是页表操作：读取各级项需原子读以保证整体一致，当前用 <code>READ_ONCE()</code>，但它依赖原子操作，而 Arm CPU 没有 128 位原子操作。补丁用一对新函数 <code>ptval_get()</code> 与 <code>ptval_set()</code> 包装这些访问，默认退回 <code>READ_ONCE()</code>/<code>WRITE_ONCE()</code>，架构可在需要时覆盖；为 128 位 PTE 构建的 Arm 系统用原子 <code>ldp</code>/<code>stp</code>（加载/存储双字）指令实现。</p>
+                    <p>当前实现中，内核须专门为 128 位 PTE 构建，如此构建的内核无法在不支持该 PTE 大小的 CPU 上启动——这会让发行版为难（它们有动力尽量少构建内核）。修复几乎肯定需要启动时代码打补丁（boot-time code patching），但在发行版考虑启用前或许需要。该系列已历经几次 RFC，似在稳定。由于支持 128 位 PTE 的硬件极少，现场测试必然有限；等硬件普及，Linux 很可能已准备就绪。但短期内，显然不会有太多系统从中受益。</p>
+                </div>
+            </div>
+
+            <!-- 文章 6 -->
+            <div class="article" id="article6">
+                <div class="article-header">
+                    <span class="article-category">BPF / 测试</span>
+                    <h2>BPF、持续测试与稳定内核</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>发布日期：2026年8月14日（LSFMM+BPF 2026 报道）</span>
+                        <span><a href="https://lwn.net/Articles/1088565/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在 2026 年 <a href="https://events.linuxfoundation.org/lsfmmbpf/">LSFMM+BPF 峰会</a> 上，Ihor Solodrai 与 Shung-Hsi Yu 以两场测试相关会话收尾 BPF 分会场。Solodrai 讲 BPF 持续集成（CI）测试的变化，Yu 讲如何更彻底地测试稳定内核中的 BPF 更新。他们说 BPF 子系统的 CI 测试状况良好，但仍有若干可改进方向。</p>
+
+                    <h3>BPF CI</h3>
+                    <p>去年以来，Solodrai 维护了 BPF-CI 基础设施并做了多项改进，特别想谈 LLM 驱动的审查、额外的测试工作流，以及对测试基础设施的更新。LLM 审查在他看到 <a href="https://github.com/sashiko-dev/sashiko">Sashiko</a> 证明可行前就在探索；他最终做出了独立实现。BPF-CI 用 <a href="https://github.com/masoncl/review-prompts">Chris Mason 的审查提示</a>、语义搜索、Lore 邮件列表归档与内核源码树，对 BPF 变更生成审查，通过 GitHub Actions 触发——向 BPF 树的 GitHub 镜像提 PR，稍后会收到带 LLM 审查的评论。</p>
+                    <p>起初他不知这有没有用，结果"现在大家都对 AI 审查兴奋"，似乎确实有用。Sashiko 有专门团队，是更强工具，他考虑关掉 BPF-CI-LLM 审查，但暂留着——因为它用不同 LLM 提供商（Anthropic 而非 Sashiko 的 Google），风味略不同。他也用 LLM 调查并报告 flaky 测试，免得自己排查所有失败。</p>
+                    <p>常规测试覆盖也扩展了：用户空间部分的 BPF 自测现在带地址消毒（ASAN）运行（本为抓 libbpf bug，目前主要抓测试自身的 bug）；<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/testing/selftests/bpf/veristat.c">Veristat</a>（测加载 BPF 程序耗时的工具）现在在更大的程序语料上运行以抓验证器性能回归。测试过去只跑 BPF 树，现也跑 linux-next；自测现在用 GCC 与 Clang 都编译并都运行（过去只跑 Clang 编译的）。底层 CI 从 Ubuntu 迁到 Debian，测试机用 GCC 15.x 与 Clang 21.x。</p>
+                    <p>他也有持续抱怨：Anthropic、GitHub、Ubuntu 仓库乃至 git.kernel.org 都易宕机，"如今软件更不可靠了——我想知道原因——若你对其中任何公司有影响力，请让它们更可靠。"他问开发者还该在 CI 测什么；有人建议做按测试用例（而非按构建）显示成败的仪表盘。</p>
+
+                    <h3>稳定内核</h3>
+                    <p>Linux 稳定版由手动标记回移植或 <a href="https://lwn.net/Articles/825536/">AUTOSEL</a> 补丁选择工具挑选。Yu 指出问题在于 AUTOSEL 不跑 BPF 自测——它只检查补丁能否干净应用，不足以确认验证器仍按预期工作。去年 Yu 提议修复，Solodrai 提供现有自测访问以复刻设置。如今他的自测跑在多个稳定树上，可分享额外覆盖抓到了什么。</p>
+                    <p>他说多数失败是噪声，尤其那些对回移植代码本就错误的测试。例如他曾发 revert 撤回一个用 6.6 内核没有的辅助函数的测试。有时失败更微妙：一个回移植测试把网络 MTU 设为 10 字节，在命名空间内没问题，但在够老的内核上影响了根命名空间，引发许多下游失败。构建失败多因漏回了补丁。测试也抓到更复杂的：例如误认 <code>struct_ops</code> 结构中指针有效导致的内核 panic。他希望抓到更多真实回归——最有效的是把测试随回移植变更一起回移植。</p>
+                    <p>Daniel Borkmann 问 Yu 多久跑一次；答每天早晨跑，以便醒来看。Borkmann 问能否把稳定测试并入主 BPF-CI 套件；Yu 认为并非不可能，但他方式略不同——不是每次变更都跑，而是跑时拉取稳定树里的任何内容，通常能在 Greg Kroah-Hartman 出稳定 RC 前完成整轮。他认为稳定测试独立于主 BPF-CI 是有用的。Yu 目前测三个稳定分支，约每月出一次问题，需有人维护。</p>
+                    <p>仍有更多可做：应回移植更多自测，测试也应覆盖不同架构。总之内核 BPF 代码正受到比以往更多的自动化测试与审视。</p>
+                </div>
+            </div>
+
+            <!-- 文章 7 -->
+            <div class="article" id="article7">
+                <div class="article-header">
+                    <span class="article-category">内核 / 开发统计</span>
+                    <h2>7.2 内核开发统计</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>发布日期：2026年8月17日</span>
+                        <span><a href="https://lwn.net/Articles/1088565/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Linus Torvalds 在 8 月 17 日<a href="https://lwn.net/ml/all/CAHk-=wjk5StpAmUKHacj=GPKwA88y_YRHK=i_YAJFgmxn1=k4w@mail.gmail.com/">发布了 7.2 内核</a>，并提到涌入的修复"仍比我期望的多"。事实上，7.2 是内核史上最繁忙的开发周期之一，新增近 60 万行代码。来看看统计，以把握开发社区的变化。</p>
+                    <p>7.2 合并了 16,418 个非合并提交，超过（已很繁忙的）7.1，是内核史上第二繁忙的发布——只有 <a href="https://lwn.net/Articles/956765/">6.7</a> 提交更多，但 6.7 由 bcachefs 开发历史合并主导，而 7.2 的体量更广泛。</p>
+                    <p>这些提交来自 2,652 名开发者，较此前纪录（7.1 的 2,479）大幅增加。开发者参与数自 Git 时代起总体呈上升趋势，但斜率明显变了。</p>
+                    <p>7.2 最活跃的开发者（按变更集）：Uwe Kleine-König（151，0.9%）、Rosen Penev（146）、Ian Rogers（138）、Johan Hovold（133）、Arnaldo Carvalho de Melo（131）、Chuck Lever（129）、Eric Dumazet（121）、Ville Syrjälä（115）、Johannes Berg（112）、Krzysztof Kozlowski（110）等。</p>
+                    <p>按改动行数：Matthew Stewart（835,878，8.4%，循例添加机器生成的 amdgpu 头文件）、Hawking Zhang（628,936）、Miguel Ojeda（389,793，把 Rust <a href="https://docs.rs/zerocopy/latest/zerocopy/">zerocopy crate</a> 引入内核）、Ian Rogers（319,493）、Darren Ye（208,432，添加 MediaTek mt8196 声卡驱动）等。</p>
+                    <p>7.2 中略超 8% 的提交带 Tested-by 标签，48% 带 Reviewed-by。Reviewed-by 标签近期发布呈轻微下降趋势。本周期最活跃的测试者与审查者：测试 Dan Wheeler（117）、Luiz Capitulino（54）等；审查 Konrad Dybcio（231）、Dmitry Baryshkov（225）、Andy Shevchenko（175）等。</p>
+                    <p>7.2 的工作由 249 家可识别的雇主支持，最活跃者：未知（16.7%）、Intel（9.2%）、Google（7.3%）、Red Hat（5.3%）、AMD（5.0%）、Qualcomm（4.7%）等。最显著的变化或许是"隶属未知"的开发者大幅增加——部分反映了涌入内核社区的新开发者洪流。</p>
+
+                    <h3>新开发者及其工具</h3>
+                    <p>前两次发布都刷新了首次贡献者纪录，7.2 再次打破：613 名此前未出现的贡献者。最活跃的新开发者 Bryam Vargas 贡献了 43 个提交，修复输入、NVMe、F2FS、AppArmor、Landlock、SELinux、NTFS、WiFi、ATA、SCSI、网络、Ceph、Thunderbolt 等子系统的问题。对资深内核开发者而言，单个周期深入这么多子系统（若想理解自己在做什么）都很难，一个此前无名者做到这点即便不说不可能也令人惊讶。不过 Vargas 的补丁没带 Assisted-by 标签，因此我们只能相信这项工作没有 LLM 辅助。</p>
+                    <p>7.2 中共有 1,111 处变更（不到总数 7%）带 Assisted-by 标签——较 7.1 的 301 大幅增加。但 7.2 中 LLM 辅助补丁的真实数量肯定高得多：许多开发者不提供标签（常因不懂规则），维护者很少追问 LLM 使用，至少一名维护者在应用补丁时[主动剥除这些标签](https://lwn.net/ml/all/20260701115302.29c66401@kernel.org/)。准确追踪 LLM 辅助提交或许不可能，但有时感觉社区不够在意、没真正尝试。</p>
+                    <p>LLM 使用的另一影响在补丁审查：7.2 中有 252 个补丁带 Reported-by 归功于 <a href="https://lwn.net/Articles/1064830/">Sashiko 审查系统</a>，568 个提交在变更日志里提到 Sashiko；其他 LLM 显然也被用于找内核 bug，且有真实效果。</p>
+                    <p>7.2 含 4,830 个带 Fixes 标签的提交（表明修复了此前某提交引入的 bug）。带 Fixes 标签的提交数量早已超过新引入 bug 的数量——交叉点约在 5.9，暗示自该版本起社区修复的 bug 多过引入的；但这一结论不牢靠，因为 5.9 之后的 bug 还需多年才能被识别与修复，曲线会随之移动。</p>
+                </div>
+            </div>
+
+            <!-- 本周引述 -->
+            <div class="article" id="quotes">
+                <div class="article-header">
+                    <span class="article-category">社区 / 引述</span>
+                    <h2>💬 本周引述（Quotes of the week）</h2>
+                    <div class="article-meta">
+                        <span>编辑：Daroc Alden、Joe Brockmeier 等</span>
+                        <span><a href="https://lwn.net/Articles/1088567/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>内核引述（Greg Kroah-Hartman）</h3>
+                    <blockquote>
+                        <p>我以千日之阳的热情痛恨着 LLM 此刻给我和大多数开源项目带来的痛苦，但我无法忽视：它们以巨大代价造出了一个会说三分之一谎话的模糊工具，却能发现并修复真实的安全 bug。这工具没人会真正掏钱买，但我将不情愿地应付它，从它们的资源里取用，让 Linux 变得更好。</p>
+                        <p>正如我近月用这些工具在 rsync 里发现并修复真实 bug 那样，它们也能用来改进我们所有人赖以运转生态的基础设施。我也想指出，有"半 sane"的本地用法，能绕开 LLM 今天造成的一部分暴行（但不是全部，我同意）。</p>
+                        <p>我禁止把它们用于我维护的 Linux 某些部分，因为在那里用毫无意义；但再次强调，它是个工具，很像模糊测试器（fuzzer），能被我们用来让软件更好。</p>
+                        <p>—— <a href="https://lists.sr.ht/~sircmpwn/sr.ht-discuss/%3CDKSTMKM0ZD9N.2FTBDFREZH699@ddevault.org%3E#%3C2026081920-sitting-rematch-09ba@gregkh%3E">Greg Kroah-Hartman</a></p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for August 20, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1088567/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全</h3>
+                    <h4>Domas：利用 AMD 内存控制器绕过内存保护</h4>
+                    <p>Christopher Domas <a href="https://github.com/xoreaxeaxeax/skitter-creek-bath-salts">发布</a>了一个概念验证，说明如何用 AMD 内存控制器的 bank swizzle 模式绕过内存保护、读写任意数据，包括 CPU 微码定义与<a href="https://en.wikipedia.org/wiki/AMD_Platform_Security_Processor">平台安全处理器（PSP）</a>的内存。这允许内核级代码直接操纵处理器指令的含义，可能绕过内存加密、虚拟机隔离等其他安全措施。这并非严格意外的行为——它<a href="https://www.amd.com/content/dam/amd/en/documents/archived-tech-docs/programmer-references/32559.pdf">记录在 AMD 手册中</a>（PDF 第 113 页）；但能访问任意内存、从而重写本应不可变的固件部分而不让主机崩溃，似乎是设计的非预期副作用。好在启用 bank swizzle 模式需内核级权限，对多数软件不是眼前问题。但该技术最终很可能被用于恶意目的。</p>
+
+                    <h3>内核开发</h3>
+                    <h4>内核发布状态</h4>
+                    <p><strong>7.2 内核已发布</strong>，于 8 月 16 日<a href="https://lwn.net/Articles/1089033/">发布</a>。Linus 说："嗯，这最后一个发布周——又一次——比我期望的大，但嘿，考虑到整个'新常态'，若为此推迟发布，我们大概永远发不出任何版本。"</p>
+                    <p>本版本重要特性包括：<code>bpf()</code> 系统调用的<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=6318f11d53a3">通用属性支持</a>、CPU 调度器的<a href="https://lwn.net/Articles/1018334/">缓存感知负载均衡</a>、Btrfs 的大 folio 支持、进一步的<a href="https://lwn.net/Articles/1072657/">swap 子系统改进</a>、Landlock 安全模块改进、通过 <a href="https://docs.kernel.org/next/admin-guide/device-mapper/dm-inlinecrypt.html">dm-inlinecrypt</a> 设备映射目标支持带内联加密硬件的块设备等。见合并窗口总结（<a href="https://lwn.net/Articles/1078068/">第一部分</a>、<a href="https://lwn.net/Articles/1078539/">第二部分</a>）与 <a href="https://kernelnewbies.org/Linux_7.2">KernelNewbies 7.2 页面</a>。</p>
+                    <p>本版本有来自 2,652 名开发者的 16,418 个非合并变更集，其中 613 人为首次内核贡献者。发布历史：</p>
+                    <table>
+                        <thead>
+                            <tr><th>RC 版本</th><th>日期</th><th>提交数</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>v7.2-rc1</td><td>2026-06-28</td><td>14,395</td></tr>
+                            <tr><td>v7.2-rc2</td><td>2026-07-05</td><td>433</td></tr>
+                            <tr><td>v7.2-rc3</td><td>2026-07-12</td><td>475</td></tr>
+                            <tr><td>v7.2-rc4</td><td>2026-07-19</td><td>557</td></tr>
+                            <tr><td>v7.2-rc5</td><td>2026-07-26</td><td>611</td></tr>
+                            <tr><td>v7.2-rc6</td><td>2026-08-02</td><td>615</td></tr>
+                            <tr><td>v7.2-rc7</td><td>2026-08-09</td><td>500</td></tr>
+                            <tr><td>（正式版）</td><td>2026-08-16</td><td>247</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>稳定版更新</strong>：7.1.9、6.18.45、6.12.104、6.6.152、6.1.183、5.15.216、5.10.265 于 8 月 19 日发布。</p>
+
+                    <h3>开发</h3>
+                    <h4>Firefox 154.0 发布</h4>
+                    <p><a href="https://www.firefox.com/en-US/firefox/154.0/releasenotes/">154.0 版</a> Firefox 发布，包括把本地网络访问保护扩展到 WebSocket 连接、更灵活按站点配置 Cookie 与数据清除等。</p>
+                    <h4>GNU poke 5.0 发布</h4>
+                    <p>二进制数据编辑器 <a href="https://www.jemarch.net/poke">GNU Poke</a> 5.0 发布，含 Poke 编译器多项改进、Poke 语言新增内容，以及运行时与标准库更新。</p>
+                    <h4>Go 1.27 发布</h4>
+                    <p><a href="https://go.dev/doc/go1.27">Go 1.27</a> 发布，带来新工具、后量子算法 <a href="https://go.dev/doc/go1.27#crypto_mldsa">ML-DSA</a> 支持、新的 JSON 处理包、语言更新等。</p>
+                    <h4>Python 打包委员会候选人公布</h4>
+                    <p>Python 软件基金会（PSF）<a href="https://pyfound.blogspot.com/2026/08/announcing-packaging-council-election.html">公布</a> Python 打包委员会（PPC）选举的<a href="https://www.python.org/nominations/elections/2026-python-packaging-council/nominees/">候选人</a>。首届选举填满全部 5 个席位，得票最高的 2 人为 A 组（任期 2 年），接下来 3 人为 B 组（任期 1 年）。17 名候选人角逐 5 个席位；投票资格成员须在 8 月 25 日前确认投票意向，9 月 1 日至 15 日投票。</p>
+                    <h4>rsync 3.5.0 发布</h4>
+                    <p><a href="https://download.samba.org/pub/rsync/NEWS#3.5.0">rsync 3.5.0</a> 发布，带来<a href="https://download.samba.org/pub/rsync/NEWS#SECURITY_FIXES-3.5.0">大量安全修复</a>：在针对 rsync 路径处理与守护进程协议的集中审计、配套模糊测试，以及外部研究者报告中共修复 33 个安全问题（CVE 由 VulnCheck 分配）。每个修复都附带会在未修复树上失败的回归测试。</p>
+                    <h4>Tuba 0.11 发布</h4>
+                    <p>Fediverse 客户端 <a href="https://codeberg.org/GeopJr/Tuba">Tuba</a> <a href="https://codeberg.org/GeopJr/Tuba/releases/tag/v0.11.0">0.11 版</a>发布， notable 变化包括支持 Mastodon 集合与引用帖子、为附件创建自定义缩略图、新 emoji 选择器、Android 构建等。</p>
+
+                    <h3>杂项</h3>
+                    <h4>Mark J. Wielaard 获软件自由杰出服务奖</h4>
+                    <p><a href="https://sfconservancy.org/">Software Freedom Conservancy</a> <a href="https://sfconservancy.org/news/2026/aug/12/mark-j-wielaard-receives-2-annual-award/">宣布</a> Mark J. Wielaard 因多年服务软件自由荣获第二届年度杰出服务奖。他维护 <a href="https://sourceware.org/">Sourceware</a>（史上最老的 FOSS 协作与开发者基础设施托管站点），是 <a href="https://dwarfstd.org/">DWARF 调试标准委员会</a>成员，<a href="https://valgrind.org/">Valgrind</a> 与 <a href="https://elfutils.org/">elfutils</a> 的维护者，也为其他 GNU 项目做贡献。</p>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for August 20, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1088568/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：DistroWatch Weekly（8 月 17 日）、This week in F-Droid（8 月 14 日）、This week in Fedora（8 月 17 日）、openSUSE Tumbleweed Review of the Week（8 月 14 日）、Ubuntu Weekly News（8 月 10 日）。</p>
+                    <p><strong>开发</strong>：Emacs News（8 月 17 日）；What's cooking in git.git（8 月 12/14/17/18 日四期）；This Week in GNOME（8 月 14 日）；GNU Tools Weekly News（8 月 16 日）；Golang Weekly（8 月 14 日）；Last Week in Kubernetes Development（8 月 13 日）；LLVM Weekly（8 月 17 日）；This Week in Matrix（8 月 14 日）；OCaml Weekly News（8 月 18 日）；OpenPrinting News（8 月 11 日）；Perl Weekly（8 月 17 日）；This Week in Plasma（8 月 15 日）；PyCoder's Weekly（8 月 18 日）；This month in Radicle CI（8 月 19 日）；Weekly Rakudo News（8 月 18 日）；Ruby Weekly News（8 月 13 日）；This Week in Rust（8 月 12 日）；Wikimedia Tech News（8 月 17 日）。</p>
+                    <p><strong>会议记录</strong>：Fedora FESCo meeting minutes（8 月 18 日）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 31 日</td><td>10 月 2–4 日</td><td><a href="https://conf.gnu-tools-cauldron.org/prg26/">GNU Tools Cauldron</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 3–4 日</td><td><a href="https://pretalx.linuxdays.cz/linuxdays-2026/cfp">Linux Days 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>10 月 6 日</td><td><a href="https://forms.gle/iRK48ACWnMatihg59">Real-time Linux User Forum</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>次年 1 月 20–22 日</td><td><a href="https://2027.everythingopen.au/programme/proposals/">Everything Open</a></td><td>布里斯班，澳大利亚</td></tr>
+                            <tr><td>9 月 18 日</td><td>9 月 19 日</td><td><a href="https://digitalfreedoms.org/en/sfd">Software Freedom Day NJ</a></td><td>蒙特克莱尔，美国</td></tr>
+                            <tr><td>10 月 1 日</td><td>11 月 7–8 日</td><td><a href="https://cfp.openfest.org">OpenFest 2026</a></td><td>索非亚，保加利亚</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 25–30 日</td><td><a href="https://ch2026.mini.debconf.org/">MiniDebConf and MiniDebCamp Winterthur 2026</a></td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 30 日–9 月 5 日</td><td><a href="https://2026.foss4g.org/en/">FOSS4G Hiroshima 2026</a></td><td>广岛，日本</td></tr>
+                            <tr><td>9 月 17–18 日</td><td><a href="https://git-merge.com/">Git Merge</a></td><td>里斯本，葡萄牙</td></tr>
+                            <tr><td>9 月 19–24 日</td><td><a href="https://akademy.kde.org/2026/">Akademy 2026</a></td><td>格拉茨，奥地利</td></tr>
+                            <tr><td>9 月 19 日</td><td><a href="https://njsfd.org/">Software Freedom Day NJ</a></td><td>蒙特克莱尔，美国</td></tr>
+                            <tr><td>9 月 19–20 日</td><td><a href="https://nextcloud.com/conference-2026">Nextcloud Community Conference 2026</a></td><td>柏林，德国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td><a href="https://kernel-recipes.org/en/2025/">Kernel Recipes</a></td><td>巴黎，法国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td><a href="https://reproducible-builds.org/events/gothenburg2026/">Reproducible Builds Summit</a></td><td>哥德堡，瑞典</td></tr>
+                            <tr><td>9 月 25–27 日</td><td><a href="https://postmarketos.org/conference/">PostmarketOS and Alpine Linux Conference</a></td><td>亚琛，德国</td></tr>
+                            <tr><td>9 月 28–30 日</td><td><a href="https://indico.freedesktop.org/event/12/">X.Org Developers Conference</a></td><td>多伦多，加拿大</td></tr>
+                            <tr><td>9 月 28 日–10 月 1 日</td><td><a href="https://www.alpss.at/">Alpine Linux Persistence and Storage Summit</a></td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>9 月 30 日–10 月 1 日</td><td><a href="https://all-systems-go.io/">All Systems Go! 2026</a></td><td>柏林，德国</td></tr>
+                            <tr><td>10 月 1 日</td><td><a href="https://opentechday.de/">Open Tech Day | Software-defined Storage</a></td><td>纽伦堡，德国</td></tr>
+                            <tr><td>10 月 1–2 日</td><td><a href="https://www.elsa-symposium.com/home">embedded Linux for Safe and Secure Applications</a></td><td>哥廷根，德国</td></tr>
+                            <tr><td>10 月 2–4 日</td><td><a href="https://gnu-tools-cauldron.org/">GNU Tools Cauldron</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 3–4 日</td><td><a href="https://events.opensuse.org/conferences/oSAS26">openSUSE.Asia Summit 2026</a></td><td>日惹，印度尼西亚</td></tr>
+                            <tr><td>10 月 3–4 日</td><td><a href="https://www.linuxdays.cz/2026/">Linux Days 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 5–7 日</td><td><a href="https://lpc.events/event/20/">Linux Plumbers Conference 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 6 日</td><td><a href="https://realtime-linux.org/event/real-time-linux-user-forum/">Real-time Linux User Forum</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 6 日</td><td><a href="https://www.yoctoproject.org/event/ypdd-26/">Yocto Project Developer Day 2026</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 7–9 日</td><td><a href="https://events.linuxfoundation.org/open-source-summit-europe/">Open Source Summit Europe</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 7–9 日</td><td><a href="https://events.linuxfoundation.org/embedded-linux-conference-europe">Embedded Linux Conference Europe</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 8 日</td><td><a href="https://events.linuxfoundation.org/linux-security-summit-europe/program/schedule-at-a-glance/">Linux Security Summit Europe</a></td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 14–17 日</td><td><a href="https://za.pycon.org/">PyCon South Africa</a></td><td>开普敦，南非</td></tr>
+                            <tr><td>10 月 18–20 日</td><td><a href="https://2026.allthingsopen.org/">All Things Open</a></td><td>罗利，美国</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>本期涵盖 8 月 13 日至 8 月 19 日期间各发行版发布的大量安全公告（完整条目见 <a href="https://lwn.net/Articles/1089504/">LWN 安全公告摘要（2026年8月13日–8月19日）</a>），涉及 AlmaLinux、Debian（含 stable 与 LTS）、Fedora、Gentoo、Mageia、Oracle、Red Hat、Slackware、SUSE、Ubuntu。受影响软件包涵盖内核、.NET、bind、curl、dhcpcd、dracut、freerdp、glib2、gnome-remote-desktop、gstreamer 插件、haproxy、kernel、libXfont2、libarchive、libssh、nghttp2、nodejs、openssh、pam、php、python-idna、rsync、sg3_utils、unbound、vim、xorg-server、zip 等。例如：AlmaLinux 的 ALSA-2026 系列（.NET、389-ds-base、bind、curl、kernel、libssh、pam、rsync、unbound、vim 等）；Debian 的 DSA/DLA 系列（apr-util、calibre、chromium、docker.io、expat、flatpak、ironic、lemonldap-ng、librabbitmq、linux-6.12、neutron、postgresql、python-django、spip、srt、swift、unzip、util-linux、xdg-dbus-proxy、xorg-server、zip 等）；Fedora 的 FEDORA-2026 系列（GitPython、apr-util、chromium、coturn、cri-o、erlang、flatpak、jfrog-cli、lemonldap-ng、libcupsfilters、libgit2、linux-firmware、pdns、perl、php、python、rust、sqlite、stunnel、vaultwarden 等）；Gentoo 的 GLSA 系列（Apache、Bubblewrap、Dnsmasq、Exim、Flatpak、FreeType、rsync 等）；Red Hat 的 RHSA 系列（bind、fence-agents、gnome-remote-desktop、golang、grafana、osbuild-composer、pam、python、rhc、sg3_utils 等）；SUSE 的 SUSE-SU / openSUSE-SU 系列（kernel、chromium、dracut、firefox、go、gzip、libXfont2、nginx、nodejs、openssh、redis、rsync、samba、webkit2gtk3、wireshark 等）；Ubuntu 的 USN 系列（c3p0、dotnet、engrampa、libgit2、linux 各系列、node-axios、node-follow-redirects、yelp 等）。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（8 月 12–19 日）内核相关补丁数量庞大，以下按类别择要摘录，完整列表见 <a href="https://lwn.net/Articles/1088568/">LWN Announcements 页面</a>。</p>
+
+                    <h4>内核发布</h4>
+                    <ul>
+                        <li>Linux 7.2（Linus Torvalds，8 月 16 日）、7.2-rt5（8 月 18 日）、7.1.9（8 月 19 日）、GNU Linux-libre 7.2-gnu（8 月 16 日）；稳定版 6.18.45、6.12.104、6.6.152、6.1.183、5.15.216、5.10.265（8 月 19 日）；实时版 6.6.151-rt78、6.1.182-rt67、5.10.264-rt160。</li>
+                    </ul>
+
+                    <h4>架构相关</h4>
+                    <ul>
+                        <li>arm64：暴露 CPU 预取与缓存调节控制；x86/fpu 恢复并强化信号帧可移植性；x86/msr 移除 32 位 MSR 接口；开始移除 X86_X32_ABI。</li>
+                        <li>riscv：hwprobe 暴露 RVA23U64 基础行为；bpf/riscv 为 RV64 JIT 添加 BPF 栈参数支持。</li>
+                        <li>s390/mm：惰性 MMU 模式下批量更新 PTE；sparc32 允许内核加载到远离 RAM 起始处。</li>
+                        <li>syscalls：为所有架构添加共享表。</li>
+                    </ul>
+
+                    <h4>核心内核</h4>
+                    <ul>
+                        <li>重新设计验证错误；bpf 引入全局 percpu 数据、支持至多 16 字节聚合返回值、跨低 32 位追踪标量相等、cgroup cpu 控制器添加 bpf、暴露 cpu.stat 到 BPF。</li>
+                        <li>sched：让代理执行（proxy execution）兼容 sched_ext；一系列负载均衡补丁改善 CFS 实时性；sched_ext 更新核心调度任务排序。</li>
+                        <li>新增 mq_recvmmsg()/mq_sendmmsg() 两个 POSIX IPC mqueue 系统调用；perf/core 添加 AUX 缓冲区内核消费者 API；tracing/remotes 添加 printk、dump_on_panic 与启动参数；停止 TIF_NOTIFY_SIGNAL 打断不可重启工作；unwind_user 实现 .eh_frame 处理；全局软件中断节制（GSIM）。</li>
+                    </ul>
+
+                    <h4>开发工具</h4>
+                    <ul>
+                        <li>selftests/xsk 改进共享 UMEM 覆盖；selftests 共享 lib.bpf.mk 构建 BPF 程序与骨架；rtla 更稳健的 nr_cpus 处理；selftests/mm 改进 khugepaged 覆盖与 TAP 输出；持久栈 depot 记录采用路径压缩 trie 存储。</li>
+                    </ul>
+
+                    <h4>设备驱动（择要）</h4>
+                    <ul>
+                        <li>crypto：SPAcc 加密驱动、Rockchip RK356x/RK3588 加密卸载。</li>
+                        <li>net：mana 重配置队列集、rnpgbe TX/RX 与链路状态、r8169 RTL8127 RSS、bng 特性、hinic3 PF 初始化、nvme-tcp IPv6 流量类支持、ath12k 扩展 DP 统计。</li>
+                        <li>gpu：nova-core 保留 GSP-RM 日志缓冲、r000 GSP 固件启动、NVKV 编解码；drm/nouveau 默认启用原子模式设置；drm/panel 支持 Retroid Pocket 6 面板、SSD1351 OLED；YUV 转换 colorop（amdgpu 与 VKMS）。</li>
+                        <li>rust 示例：EDU PCI 驱动（MMIO + IRQ + DMA）；accel：Qualcomm DSP 加速器、RK3576 NPU（RKNN）使能。</li>
+                        <li>其他：Ambarella CV75 与 Long Zhao 系列、Tegra264 PCIe、Qualcomm Kuno/I2C/SM7250 系列、Apple T2 NHI 设备链接、MediaTek T9XX WWAN、vfio/pci CXL Type-2 透传、iXD 驱动、HID asus ROG Ally 掌机支持等。</li>
+                    </ul>
+
+                    <h4>设备驱动基础设施</h4>
+                    <ul>
+                        <li>drm/panel 为每个 panel 添加 panel_bridge；notifier 添加设备托管注册 API；drm/vblank 强制全有或全无支持；DRM File 私有数据生命周期参数化；rust: drm 添加 panel 绑定；driver core/net 处理 class 设备与 PHY 包的 fw_devlink；virtio 支持拥有自身 virtqueue 内存的设备；rust: io 支持寄存器投影并移除相对寄存器。</li>
+                    </ul>
+
+                    <h4>文件系统与块层</h4>
+                    <ul>
+                        <li>ceph 优化 struct 布局、写回路径转 folios、降低 mdsc->mutex 争用；ext4 常规文件缓冲 I/O 路径改用 iomap；XFS 带 post EOF merkle 树的 fs-verity 支持；改进离线/只读 zone 处理；nfs 现代化直接 I/O 路径；修复负目录项易修复部分；block 暴露 blkcg io.stat 到 BPF；XFS 通过滚动事务的原子多区间操作。</li>
+                    </ul>
+
+                    <h4>内存管理</h4>
+                    <ul>
+                        <li>huge_memory folio 拆分清理并解除 swapcache 拆分限制；大 folio 迁移时批量 rmap 遍历；xswap：由 zswap 支撑的可扩展（虚拟）交换设备；slub 保留先前对象生命周期；无条件每-VMA 锁及清理；zswap 经固定池索引收缩条目；PMD 级匿名 THP 交换项；按层内存记账与控制；section 级 HugeTLB vmemmap 优化；BPF 驱动的主动 memcg 回收；更小大 folio 的 lru 缓存。</li>
+                    </ul>
+
+                    <h4>网络</h4>
+                    <ul>
+                        <li>引入 bpf_ksock；硬件 pacing 卸载；neighbour 将 arp_tbl 与 nd_tbl 命名空间化；BPF 元数据的 skb 扩展；virtio_net 添加 ethtool 流规则支持；ntb_netdev 跨 NTB 保留校验和卸载；netconsole 支持消息限流；netfilter flowtable 添加并使用 NF_FLOW_CONFIRMED 位跳过 GC；新增 NO_STA 标志并重做 RX 链路解析。</li>
+                    </ul>
+
+                    <h4>安全相关</h4>
+                    <ul>
+                        <li>landlock 限制 whiteout 对象创建；bpf 引入 LOADER_LOAD_FD；audit 在 SYSCALL 记录中记录全部六个系统调用参数；skb secmarks 改为 x-array 索引；基于 pkeys 的页表加固；让 SELinux 阻止 /proc/self/mem 的 FOLL_FORCE。</li>
+                    </ul>
+
+                    <h4>虚拟化与容器</h4>
+                    <ul>
+                        <li>KVM arm64 提供 GCS 客户机支持；KVM VMX 强化以防把 TDX vCPU 解释成 vcpu_vmx；KVM riscv 添加 KVM_PRE_FAULT_MEMORY 支持；KVM x86/pmu 添加硬件 Topdown 指标；KVM nSVM 为嵌套客户机启用 DecodeAssists；KVM TDX 启用 VM-DoS 防护特性。</li>
+                    </ul>
+
+                    <h4>杂项</h4>
+                    <ul>
+                        <li>rust 添加 ID 区间预留支持；bpf htab 减少哈希表内存占用；cpunoise（CPU 隔离测试工具）v0.2；perf c2c 添加函数视图；LTTng-modules 2.15.3 与 2.14.7；perf 添加 CoreSight 分支历史到现有样本；iproute2 7.2 发布。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <!-- 期刊导航 NAV-START -->
+        <nav class="nav-bar bottom" aria-label="期刊导航">
+            <a class="nav-btn" href="index.html">🏠 主页</a>
+            <a class="nav-btn nav-current" href="2026-08-20.html">📰 最新</a>
+            <a class="nav-btn" href="2026-08-13.html">← 上一个</a>
+            <span class="nav-btn nav-disabled">下一个 →</span>
+            <span class="nav-current-label">2026年8月20日</span>
+        </nav>
+        <!-- 期刊导航 NAV-END -->
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1088565/" target="_blank">LWN.net Weekly Edition for August 20, 2026</a></p>
+            <p>更新时间：2026年8月28日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
