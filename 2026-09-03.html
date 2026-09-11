@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年9月3日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年9月3日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <!-- 期刊导航 NAV-START -->
+        <nav class="nav-bar" aria-label="期刊导航">
+            <a class="nav-btn" href="index.html">🏠 主页</a>
+            <a class="nav-btn nav-current" href="2026-09-03.html">📰 最新</a>
+            <a class="nav-btn" href="2026-08-27.html">← 上一个</a>
+            <span class="nav-btn nav-disabled">下一个 →</span>
+            <span class="nav-current-label">2026年9月3日</span>
+        </nav>
+        <!-- 期刊导航 NAV-END -->
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">Python JIT 的停顿</a></li>
+                    <li><a href="#article2">"rnull" Rust 块设备驱动</a></li>
+                    <li><a href="#article3">用 steal time 调节 CPU 需求</a></li>
+                    <li><a href="#article4">GNOME 的治理演进</a></li>
+                    <li><a href="#article5">7.3 合并窗口的剩余部分</a></li>
+                    <li><a href="#article6">安全挂起 LUKS 加密磁盘</a></li>
+                    <li><a href="#briefs">📝 Brief items（社区简讯）</a></li>
+                    <li><a href="#announcements">📢 Announcements（公告）</a></li>
+                </ul>
+            </div>
+
+            <!-- 专题文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">开发工具 / Python</span>
+                    <h2>Python JIT 的停顿</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>2026年9月1日</span>
+                        <span><a href="https://lwn.net/Articles/1090385/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>2024 年，<strong>Python 3.13</strong> 版本加入了一个<strong>实验性即时（JIT）编译器</strong>，用于优化 CPython 执行 Python 代码的方式。此后 JIT 的工作一直在推进，只是也许不如某些人希望的那样正式。今年 6 月，Python 的<a href="https://peps.python.org/pep-0013/#the-steering-council">指导委员会</a>（SC）发布了一份<a href="https://discuss.python.org/t/an-announcement-from-the-steering-council-regarding-the-jit-project/107638">公告</a>：在主线分支接受一份能论证"将 JIT 作为 CPython 受支持部分"的<strong>Python 增强提案（PEP）</strong>之前，JIT 上不再合入新的开发（除缺陷和安全修复外）。这促成了 <strong>PEP 836</strong>（"JIT Go Brrr：通往 CPython 受支持 JIT 编译器的路径"）的提出，目前正在讨论中。看起来 JIT 的工作很可能继续，但何时继续还不确定。</p>
+
+                    <h3>用 PEP 说话</h3>
+                    <p>Python 社区用 PEP 来提议新特性、聚焦讨论、收集社区意见，并记录决策。PEP 分三类：标准跟踪、流程、信息性。标准跟踪 PEP 用于重大的新特性或变更（如移除全局解释器锁 GIL 之前需社区讨论决定）；流程 PEP 类似，但关乎 Python 治理与开发实践，被指导委员会接受后即具约束力；信息性 PEP 则只提供指南或信息，不代表正式共识，不具约束力，通常不适合作为主线合入重大特性的依据。然而 Python 的 JIT 工作却一直建立在 <strong>PEP 744</strong>（"JIT 编译"，一份信息性 PEP）之上。</p>
+                    <p>PEP 744 是在核心开发者 Brandt Bucher 已于 2024 年 1 月（3.13 发布前）合入添加 JIT 编译器的<a href="https://github.com/python/cpython/pull/113465">拉取请求</a>数月之后才提出的。几天后，当时担任 3.13 发布经理的指导委员会成员 Thomas Wouters 询问为何在 PEP 提交或接受前就提交了该特性，并最终说服 Bucher 认为需要一份 PEP。PEP 744 于 2024 年 4 月公布。LWN 当时报道过部分讨论，以及 Bucher 在 PyCon US 2024、2025 关于 JIT 的演讲。</p>
+                    <p>GitHub 上有一个 2025 年 9 月创建的<a href="https://github.com/python/cpython/issues/139038">"3.15 与 3.16 的 JIT 规划"追踪议题</a>，目标是让 JIT 在 2027 年的 3.16 版本默认启用。但工作一直缺少一份表明更广泛社区共识的标准跟踪 PEP。</p>
+
+                    <h3>按下暂停</h3>
+                    <p>委员会在公告中特意强调，它并非在批评 JIT 工作或其背后的人："这是艰苦、高度技术性的工作，完成得极为用心，近期的性能提升是真实且令人鼓舞的。"但由于项目已进行并几经重构，委员会认为"现在是重新评估 JIT 在项目中的非正式地位的好时机"。</p>
+                    <p>委员会设定了一个六个月的窗口期，要求在此期间提交并解决一份新 PEP；若届时未通过，JIT 代码将从主线移除，后续开发须在仓库之外进行。委员会要求 PEP 回答若干要点：JIT 如何长期持续与维护；如何与 CPython 其他特性及工具链保持兼容；与第三方 JIT 实现是否（不）兼容；JIT 架构是否被视为稳定或还会进一步变化；以及"清晰、可度量的成功指标与时间线"。</p>
+                    <blockquote>
+                        <p>"我们知道这要求那些投入多年的人做出一些牺牲，我们并非轻描淡写。我们视之为不是让项目熄火，而是给它、给社区，一个如此量级的 CPython 运行时变更本应得到的清晰性与明确承诺。"</p>
+                    </blockquote>
+
+                    <h3>为何是现在？</h3>
+                    <p>Antoine Pitrou 表示委员会的决定看似合理，但想知道是否有"更深的背景"促成。Wouters 回复说并没有"单一的触发请求"，公告是在 3.15 beta 之后发布，表明委员会对 3.15 的"现状"没有意见。JIT 仍是 3.15 的实验特性，并包含重大更新（新的 tracing 前端、基础形式的寄存器分配、若干优化）。Peter Bierma 询问截止期是否现实——有些 PEP（如 PEP 703 移除 GIL）正式提交后花了五个月才被接受。Pablo Galindo Salgado 表示若 PEP 卡在讨论或排队中会保持灵活。Wouters 补充说，委员会想推动"来自社区的清晰决定"，因为 JIT 是值得认真对待的重大变更。</p>
+                    <p>Mark Shannon 认为暂停开发让贡献者处境尴尬，问能否再继续一两个月让 PEP 充分讨论。JIT 贡献者、委员会成员 Savannah Ostrowski 回复说她不认为需要宽限期。Shannon 澄清他担心的是失去势头与贡献者。JIT 贡献者 Jiahao Li 问是否有"清晰而微小"的优化可继续。Alyssa Coghlan 建议对正在进行的 PR（尤其新贡献者的）给予宽限期。委员会成员 Donghee Na 则不被说服，认为主要精力应放在写 PEP 上。</p>
+                    <p>6 月 8 日，核心开发者兼 JIT 贡献者 Diego Russo 表示已与 Shannon 讨论下一步并起草方案。"JIT Go Brrr"草案 PEP 由 Ken Jin 于 7 月 3 日公布。名称可能是在玩追踪 JIT 与标准 CPython 性能对比的网站 <a href="https://www.doesjitgobrrr.com/">doesjitgobrrr</a> 的梗；"Go Brrr"源自美联储印钞的 meme。</p>
+
+                    <h3>新 PEP</h3>
+                    <p>该 PEP 由 Bucher、Jin 和 Ostrowski 撰写，阐述 JIT 现状，并给出两年半时间线及里程碑目标。是否默认启用 JIT 交由发布经理决定，而非设定条件。目前 Windows 与 macOS 的 Python 二进制包含 JIT 但默认关闭；Fedora、Gentoo 等发行版也包含但默认关闭。用户可设环境变量 <code>PYTHON_JIT=1</code> 开启。</p>
+                    <p>第一年聚焦开发者体验改进、让 JIT 兼容无 GIL（自由线程）Python、避免回退，并为原生 Python 分析器与调试器增加测试。第二年目标（定于 3.17 首个 beta）是：在使用 JIT 加自由线程 Python 相比仅自由线程 Python 时，<strong>至少 20% 的性能几何均值提升</strong>（以 pyperformance 基准衡量）。最后一个里程碑（3.17 首个 RC 前完成）是兼容性审查：运行顶级 PyPI 包的测试套件以评估 JIT 与现有代码的兼容性。</p>
+                    <p>PEP 还呼吁支持多个 LLVM 编译器版本——目前构建 JIT 需特定 LLVM 版本（3.14 需 LLVM 19，3.15 需 LLVM 21，均已 EOL）。另有独立的标准跟踪提案 <strong>PEP 774</strong>（移除 JIT 构建的 LLVM 依赖）尚未被接受。PEP 还提议用基于方法（method）的前端替换当前的 trace-recording 前端，使 JIT"更传统、更易教学"。</p>
+
+                    <h3>讨论</h3>
+                    <p>Cesare Di Mauro 指出 PEP 提到 JIT 可能占用更多内存，却未明确内存消耗目标；Jin 表示会补充额外内存使用的上限。Wouters（以个人身份）认为这份 PEP 其实像两份：一份列接受标准，一份解释如何达标，并质疑其中"坚定"的时间线。他希望 PEP 明确讨论 JIT 的启动时间、预热时间与内存开销。Shannon 也同意"像两份 PEP"，当前 PEP 中的实现细节显得格格不入。</p>
+                    <p>Bucher 回复说 PEP"提供了 SC 所要求的"，作者们努力给出一份连贯的 PEP，拆分反而更复杂不透明。Ostrowski 补充说，没有"我们已通盘考虑的内容"就列目标，那不算真正的目标。CinderX 的 Kevin Newton 也认为应拆成两份，更担心 PEP"大大低估了 tracing JIT 与逐方法 JIT 之间的巨大差异"，并警告不要为"塞进某人脑子里"而回避复杂度。</p>
+                    <p>核心开发者 Jeremy Hylton 也主张拆分描述设计、运行时交互、指标与时间线/维护计划的独立 PEP。Eric Snow 则反对"持续施压"，支持 JIT，担心冗长要求会赶走贡献者，把 Python变成"主要只有企业团队参与"的项目。Russo 支持拆分成多份聚焦的 PEP，认为单份涵盖一切会扩大讨论面、更难达成共识。</p>
+
+                    <h3>现状</h3>
+                    <p>讨论似乎已失去势头，委员会未就"是否也应是多份 PEP"发表官方声明，作者们也未承诺拆分。8 月 17 日 Wouters 发布了 8 月 6 日委员会会议的摘要，提到与作者"座谈"讨论 PEP 状态，但未详述结果。PEP 836 列入了下次会议议程，但纪要尚未发布。目前 JIT 开发基本停摆——无人直接反对，只是不少人要求更多信息、争论细节。</p>
+                    <div class="info-box note">
+                        <p><strong>结论</strong>：Python JIT 因缺乏标准跟踪 PEP 与清晰的长期维护承诺而被"冻结"。PEP 836 给出了两年半的路线图与 20% 性能目标，但社区对"是否拆成多份 PEP"分歧明显。JIT 默认启用很可能推迟到 3.17 之后。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 专题文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">内核 / Rust</span>
+                    <h2>"rnull" Rust 块设备驱动</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>2026年8月28日</span>
+                        <span><a href="https://lwn.net/Articles/1090378/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p><a href="https://www.kernel.org/doc/html/latest/block/null_blk.html"><strong>null_blk</strong></a> 是一个小型驱动，主要用于基准测试块层实现：它接受所有请求并尽快标记为完成，做尽可能少的工作。2026 年 6 月，Andreas Hindborg 分享了一个用 <strong>Rust</strong> 实现相同功能的<a href="https://lwn.net/ml/all/20260609-rnull-v6-19-rc5-send-v2-0-82c7404542e2@kernel.org/">补丁集</a>，以证明现在已能用内核 Rust API 编写简单的块驱动，并便于对比 C 与 Rust 实现。主线内核中已有一个极简版 rnull，而 Hindborg 的补丁集使其达到与 C 版功能对等。</p>
+
+                    <h3>rnull 驱动</h3>
+                    <p>补丁集大部分用于补齐编写块驱动所需的最后几个 Rust 抽象。实现遵循 LWN 此前看过的 <a href="https://lwn.net/Articles/1025232/">Rust AX88796B 网络设备驱动</a>的通用模式：先用 <a href="https://rust.docs.kernel.org/macros/macro.module.html"><code>module!()</code></a> 宏声明新内核模块，再创建一个代表该模块的 Rust 类型。与 AX88796B 不同，Hindborg 的驱动用<a href="https://lwn.net/Articles/907876/">固定（pinning）</a>存储对 configfs 接口的引用，使初始化函数更复杂。</p>
+                    <p>函数主体包裹在 <a href="https://rust.docs.kernel.org/pin_init/fn.pin_init_scope.html"><code>pin_init_scope()</code></a> 调用中，它接收一段描述如何初始化内存的代码，并就地构造一个固定（不可移动）对象，而不向 Rust 代码暴露未初始化的原始内存。其余初始化逻辑直白：读模块参数、创建所需数量的磁盘设备对象，然后把 configfs 接口与磁盘列表存入模块的固定数据：</p>
+                    <pre><code>    pin_init::pin_init_scope(move || -> Result&lt;_, Error&gt; {
+        // 读取模块参数：
+        let blocking = module_parameters::blocking.value();
+        // 其他参数省略
+        ...
+
+        // 为模块级 configfs 设置构建 tag set（请求映射到硬件队列的方式之一）
+        let shared_tag_set = NullBlkDevice::build_tag_set(...);
+
+        // 创建磁盘
+        let mut disks = KVec::new();
+        for i in 0..module_parameters::nr_devices.value() {
+            // 部分局部变量省略
+            ...
+            let disk = NullBlkDevice::new(...)?;
+            disks.push(disk, GFP_KERNEL)?;
+        }
+
+        // 在固定的模块数据中存储指针
+        Ok(try_pin_init!(Self {
+            configfs_subsystem &lt;- configfs::subsystem(shared_tag_set),
+            param_disks &lt;- new_mutex!(disks),
+        }))
+    })</code></pre>
+                    <p>每个块设备由 <code>NullBlkDevice</code> 结构表示，包含实现坏块、带宽限制、设备分区等测试选项的配置参数。该结构实现了 <a href="https://rust.docs.kernel.org/kernel/block/mq/trait.Operations.html"><code>Operations</code></a> trait，描述设备磁盘操作如何执行。<a href="https://rust.docs.kernel.org/macros/attr.vtable.html"><code>#[vtable]</code></a> 宏把 trait 的函数打包成一个 vtable（装满函数指针的结构），对内核其余部分而言与 C 实现无异。核心函数是 <code>queue_rq_internal()</code>，它接收包裹内核 C 结构 <code>struct request</code> 的 Rust <a href="https://rust.docs.kernel.org/kernel/block/mq/struct.Request.html"><code>Request</code></a>。处理请求的核心逻辑（去除故障注入后）如下：</p>
+                    <pre><code>    // 获取请求的锁
+    let mut rq = rq.start();
+
+    if rq.command() == mq::Command::Flush {
+        // 若 rnull 配置为在内存中保存写入，则刷新该存储
+        if this.memory_backed {
+            this.storage.flush(&hw_data);
+        }
+        // 无论如何，标记请求已处理并返回
+        this.complete_request(rq);
+        return Ok(());
+    }
+
+    if rq.is_poll() {
+        // 若请求在轮询完成，放入轮询队列，后续轮询会完成它
+        hw_data.lock().poll_queue.push_head(rq)
+            .expect("缓冲区大小足以容纳所有在途请求")
+    } else {
+        // 否则直接标记为完成
+        this.complete_request(rq);
+    }
+    return Ok(());</code></pre>
+                    <p>对想写块驱动的人更有趣的是核心逻辑周围的"脚手架"——如何使驱动可配置并注册为块设备提供者。configfs 代码暴露与 <code>null_blk</code> 相同的设置（模拟块设备大小、报告为旋转盘还是固态盘等），也用 <code>#[vtable]</code>，但方式更绕：它为定义的每个 configfs 属性生成多个 vtable，通过<a href="https://doc.rust-lang.org/reference/items/generics.html#const-generics">常量泛型</a>区分；较简单的设置则用 <code>configfs_simple_bool_field!()</code> 等宏减少样板。"badblocks"设置无法用宏简化，其 <code>show()</code>/<code>store()</code> 展示了 Rust configfs 接口的用法：</p>
+                    <pre><code>    #[vtable]
+    impl configfs::AttributeOperations&lt;12&gt; for DeviceConfig {
+        type Data = DeviceConfig;
+
+        fn show(this: &DeviceConfig, page: &mut [u8; PAGE_SIZE]) -> Result&lt;usize&gt; {
+            let ret = this.data.lock().bad_blocks.show(page, false);
+            if ret &lt; 0 {
+                Err(Error::from_errno(ret as c_int))
+            } else {
+                Ok(ret as usize)
+            }
+        }
+
+        fn store(this: &DeviceConfig, page: &[u8]) -> Result {
+            for line in core::str::from_utf8(page)?.lines() {
+                // 解析每行并在 DeviceConfig 中设置相应选项
+                ...
+            }
+            Ok(())
+        }
+    }</code></pre>
+                    <p>加载模块时，Rust configfs 包装自动把含这些 vtable 的 <a href="https://rust.docs.kernel.org/kernel/configfs/struct.Subsystem.html"><code>configfs::Subsystem</code></a> 注册到 configfs。用户执行相应命令后，configfs 代码创建对应的 <a href="https://rust.docs.kernel.org/kernel/block/mq/gen_disk/struct.GenDisk.html"><code>GenDisk</code></a> 结构，它对应 C 侧的 <code>struct gendisk</code>，并存储指向 <code>NullBlkDevice</code> vtable 的指针。</p>
+
+                    <h3>未来的块驱动</h3>
+                    <p>null_blk 主要用于基准测试，自然要问它相比 C 实现性能如何、Rust 绑定引入了多少开销。Rust for Linux 项目的<a href="https://rust-for-linux.com/null-block-driver#results">文档</a>给出 6.19-rc5 内核上的对比：单线程性能略差、较高队列深度时略差，但某些请求大小反而更好，多数测试设置无统计显著差异。</p>
+                    <p>关键目的不是取代 C 版 null_blk，而是证明现在能用 Rust 写更有意思的新块驱动。目前 Rust 设备驱动分两类：有大项目（有人愿意实现所需全部 Rust 抽象）与针对特定设备的小驱动。前者包括 Android 的 <a href="https://lwn.net/Articles/953116/">Rust binder</a>、<a href="https://lwn.net/Articles/990736/">Nova</a>、<a href="https://lwn.net/Articles/1055590/">Tyr</a>；后者有大量被忽视的冷门驱动。截至 2026 年 8 月，内核中这类小驱动已有两类网络设备（AX88796B、QT2025）、TH1520 PWM 控制器、CPU 频率管理。rnull 为添加新块设备提供了同样的蓝图。</p>
+                    <div class="info-box note">
+                        <p><strong>结论</strong>：rnull 把 Rust 块驱动所需的抽象（模块固定、configfs、vtable、请求处理）补齐到与 C 版 null_blk 功能对等，证明用 Rust 编写块设备驱动已切实可行，为冷门设备的 Rust 化提供了可复制的模板。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 专题文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">内核 / 虚拟化 / 调度</span>
+                    <h2>用 steal time 调节 CPU 需求</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>2026年8月27日</span>
+                        <span><a href="https://lwn.net/Articles/1090381/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>虚拟化能让大量虚拟 CPU 共享较少的物理 CPU，从而提高 CPU 利用率；但实际可用的 CPU 时间并未增加，因此过多虚拟 CPU 上的高负载会导致争用与显著性能损失。Shrikanth Hegde 的 <a href="https://lwn.net/ml/all/20260825103855.721013-1-sshegde@linux.ibm.com">steal 调控器补丁集</a>试图用一种机制解决该问题：当争用高时，虚拟机自愿减少所使用的虚拟 CPU 数量。</p>
+                    <p>从虚拟机视角看，争用物理 CPU 显然不可取——虚拟 CPU 想用物理 CPU 时它却不可用，拖慢工作负载。若某个虚拟 CPU 在持有本机其他线程所需的锁时被抢占，情况更糟：仍能用物理 CPU 的线程会空转等待那个被抢占 CPU 释放的锁，可能造成严重影响。这正是让用户重新考虑共享主机的情形。</p>
+
+                    <h3>steal time 与 preferred CPU</h3>
+                    <p>虚拟 CPU 等待物理 CPU 访问的时间称为"<strong>steal time</strong>"——被别人"偷走"的执行时间。Linux 虚拟机中可从 <code>/proc/stat</code> 读取，或用 <code>top</code>、<code>vmstat</code> 观察。某虚拟 CPU 经历的 steal time 水平可衡量它遭遇的物理 CPU 争用程度。</p>
+                    <p>Hegde 的补丁集用 steal time 维护（方式见下）一个"preferred CPU"集合——它是虚拟机可用活跃虚拟 CPU 的子集；内核尽可能只把任务调度到 preferred CPU 上，其余留空。虚拟机启动时该集合含全部活跃 CPU；当 steal time 过高，从一个或多个 CPU 移出；低于下限则恢复。</p>
+                    <p>调度器以几种小而重要的方式利用该集合：</p>
+                    <ul>
+                        <li>唤醒睡眠任务时，若可能则放到某个 preferred CPU 上。</li>
+                        <li>每次常规调度 tick，检查当前 CPU 是否在集合中；若不在，把运行中的任务（如有）推到某个 preferred CPU。</li>
+                        <li>负载均衡避免把任务移到非 preferred CPU。</li>
+                    </ul>
+                    <p>重要例外是任务的 CPU 亲和性会被尊重——若任务只能跑在非 preferred CPU，则放在那些 CPU。其余情况下，该机制让被移出集合的 CPU 大多空闲，把任务集中在 preferred 集合上，减少虚拟机争用的物理 CPU 数。有人会反驳说这只是"转移问题"——争用源于负载超过物理 CPU 处理能力，减少虚拟 CPU 不会让负载消失。但不同之处在于，抢占决策被移入虚拟机内部，它更了解工作负载与谁应先运行，从而做出更好的整体决策。</p>
+
+                    <h3>策略</h3>
+                    <p>策略封装在一个叫 <code>steal_governor</code> 的"驱动"中（实际不是驱动，而是作为不断自我重提交的 workqueue 项运行）。它有三个参数：<code>interval_ms</code> 控制检查 steal time 的频率；<code>low_threshold</code> 与 <code>high_threshold</code> 以百分比设定增减 preferred CPU 数量的阈值。这些参数不在 sysfs，而是作为模块参数（近年不鼓励的方式），修改需卸载再加载模块。默认 <code>interval_ms</code>=1000ms，低/高阈值分别为 2% 与 5%。</p>
+                    <p>每次迭代，调控器比较 steal time 与高阈值；若超阈，找不含<a href="https://www.kernel.org/doc/html/next/core-api/housekeeping.html">housekeeping</a> CPU 的核心，把该核心全部 CPU 移出集合（至少保留一个）。不立即采取其他动作，上述调度调整最终会把任务移走。若低于低阈值，则把一个核心的 CPU 加回（直到全部 preferred）。</p>
+                    <p>作为概念验证，策略实现可能够用，但真实部署或许不足：至少应能不卸载模块就改参数（完全可用 sysfs/sysctl）。而且难免有人想从用户空间、甚至用 BPF 程序控制 preferred 集合。另一潜在问题是机制的"完全自愿"性——每机独立反应、无需全局控制，但结果是依赖普遍合作；若只有部分虚拟机减少，它们会相对不合作者受罚，在多租户系统上可能限制适用性。</p>
+                    <p>在可预期的合作系统上，结果不错：封面信数据显示 schbench 约提升 2%，某些 hackbench 运行提升超 44%。Hegde 总结"跨架构普遍改善，尤其是真实负载"。该系列自 2025 年 5 月首个 RFC 起已迭代 11 版，尚未获得 Acked-by/Reviewed-by，但 Hegde 称"系列已收敛，准备好进入合并考量"。合并窗口关闭后，调度维护者是否同意将见分晓。该工作曾在 <a href="https://lwn.net/Articles/1078697/#pv">2026 Linux 电源管理与调度峰会</a>讨论。</p>
+                    <div class="info-box note">
+                        <p><strong>结论</strong>：steal_governor 让虚拟机依据 steal time 自发收缩活跃虚拟 CPU 集合，把抢占决策移入虚拟机内部以减少物理 CPU 争用；多租户下因依赖自愿合作而受限，参数也需更灵活的配置方式。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 专题文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">桌面 / 社区治理</span>
+                    <h2>GNOME 的治理演进</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>2026年9月2日</span>
+                        <span><a href="https://lwn.net/Articles/1091619/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Emmanuele Bassi 在 <a href="https://events.gnome.org/event/259/">GUADEC 2025</a> 以一场关于治理思路的<a href="https://lwn.net/Articles/1034684/">演讲</a>启动了改进 GNOME 技术治理的项目。他的推动使项目缓慢地建立更正式的技术治理结构：采用团队结构、筹备指导委员会，并引导出 RFC（征求意见稿）流程。若采纳，GNOME 将要求对设计、用户体验、架构及其他重大影响项目的变更走 RFC。</p>
+
+                    <h3>GNOME 与治理</h3>
+                    <p>GNOME 成立于 1997 年，2001 年成立<a href="https://foundation.gnome.org/">非营利基金会</a>以支持项目（管理资金、商标等法律资产、开发基础设施、举办活动）。基金会<a href="https://wiki.gnome.org/FoundationBoard/Resources/Charter">原始章程</a>明确了对技术治理的刚性结构毫无兴趣：</p>
+                    <blockquote>
+                        <p>"GNOME 站在 Linux 应用市场的前沿，在满足 ISV（独立软件供应商）等加入运动的需要时，很可能持续经历成长的阵痛。把高度官僚的结构强加于一个迄今 amorphous（无定形）、有点无政府主义的社区是不可能的。而且无论如何都不该这么做。"</p>
+                    </blockquote>
+                    <p>Bassi 在<a href="https://www.bassi.io/articles/2025/08/03/governance-in-gnome/">治理演讲整理</a>中主张，对"个人项目与品味的过度依赖"使 GNOME 成为"一群被某个带着'愿景'的人赶拢在一起的猫"。他说 GNOME 软件质量近年提升，只因少数人在维护大量组件——一致但维护者面临倦怠风险。他主张废除个人维护者模式，改为共享责任。2025 年 8 月 <a href="https://discourse.gnome.org/t/rfc-governance/30738/">论坛讨论</a>中，他详述了设想：变更提案流程、按项目部分设<a href="https://discourse.gnome.org/t/rfc-governance/30738#p-121942-the-teams-13">团队</a>（平台团队、核心应用团队、工具团队等）、以及由团队代表组成的<a href="https://discourse.gnome.org/t/rfc-governance/30738#p-121942-the-steering-committee-18">指导委员会</a>。</p>
+                    <p>废除个人维护者是最具争议的一点。Adrian Vovk 认为 GNOME 人手太少，不现实；Michael Catanzaro 说完全废除不现实，因为"GNOME 是一大堆小项目的集合"，且团队视角不适合小项目，但可让团队有权否决个人维护者。Allan Day 担心一次做太多：</p>
+                    <blockquote>
+                        <p>"正式团队 + 指导委员会 + RFC 流程，太多了。三者中开发团队风险最高、最复杂。我不禁想这部分是否该解耦，给更多时间/空间演进。"</p>
+                    </blockquote>
+
+                    <h3>一年后……</h3>
+                    <p>治理工作进展缓慢，比 Bassi 希望的更慢。2026 年 7 月 17 日 <a href="https://events.gnome.org/event/306/overview">GUADEC 2026</a> 上，他在"Some more governance"演讲中更新进展（"我曾想叫'治理将持续直到士气改善'，但那太直白"）。他说本以为会有争议，却得到了宝贵反馈——"所有人都同意必须改进技术治理"，但真正干活的人很少，"大家都在等别人来解锁问题"。他原以为会很快采用，但人们"真的不知道从哪开始"。</p>
+                    <p>进展包括：现已定义什么是团队、活跃/非活跃团队的规则，<a href="https://handbook.gnome.org/teams/team-rules.html">GNOME 项目手册</a>有专章，每个团队有 <a href="https://gitlab.gnome.org/Teams">GitLab 空间</a>。目前有 bindings 团队，他像"收集宝可梦"一样聚拢做"任何平台库"的人组建平台团队。他发现文档团队等非活跃团队，需要复兴或关闭。</p>
+                    <p>但<strong>指导委员会尚未建立</strong>——谁进、任期多长、是决策还是仲裁机构、如何避免变成"一小撮人把项目引向社区不在乎的方向"，都未解答。</p>
+
+                    <h3>RFC 流程</h3>
+                    <p>答案可能在 RFC 流程中，而 Bassi 明确不主导它（"没有什么比规则律师更能惹恼一群书呆子"，且书呆子最恨官僚——"除了他们自己想出来的那种"）。Sofie Herold 主导 RFC 流程，7 月 27 日发起<a href="https://discourse.gnome.org/t/proposal-for-an-rfc-process/37221">讨论</a>，建议作为 RFC-0001 首个测试。初稿一度被删，<a href="https://gitlab.gnome.org/sophie-h/rfcs/-/blob/wip/sophie-h/0001-rfc-process/content/0001-rfc-process.md">较新草案</a>可用。</p>
+                    <p>RFC 将创建在 GNOME GitLab 的 <code>GNOME/rfcs</code> 仓库，并在论坛开讨论帖。任何基金会成员可作为合并请求（MR）创建 RFC，MR 可锁定为仅基金会成员评论。需 RFC 的情形包括解决僵持讨论、重大设计决策等。RFC"不能凌驾于 GNOME 基金会赋予某些团体或个人的职权"。RFC 由一名或多名编辑驱动，讨论中可由编辑或利益方修订。"利益方"定义为工作/项目被变更实质影响者（人、团队或全体基金会成员）。若有人反对，可提"concern"，由任意利益方（除提出者）接受。草案规定 14 天最终评论期，但未强制讨论最短时长。</p>
+                    <p>8 月 31 日 Sam Thursfield 表示已消化完文本，"最好就是采用流程并开始使用"。Herold 说评论已平息，"正缓慢走向最终评论期"；若 9 月 4 日前无新 concern，她计划通过博客、<a href="https://thisweek.gnome.org/">This Week in GNOME</a> 与论坛公告最终评论期。"总体而言，也许最好先开始用 RFC 流程，再从实践中学习。"</p>
+
+                    <h3>变革在即</h3>
+                    <p>明年 GNOME 将迎来 30 周年。项目走到今天没有正式技术治理，但"是时候摆脱无定形、无政府主义"的论点已成立。若 RFC 流程被采纳，首批提案与流程的实际效果值得关注。</p>
+                    <div class="info-box note">
+                        <p><strong>结论</strong>：GNOME 正从"个人维护者 + 无政府主义"走向团队结构与 RFC 流程，但指导委员会如何组成仍悬而未决；RFC-0001 预计 9 月初进入最终评论期，有望成为首个正式技术治理流程。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 专题文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">内核 / 7.3 合并窗口</span>
+                    <h2>7.3 合并窗口的剩余部分</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>2026年8月31日</span>
+                        <span><a href="https://lwn.net/Articles/1089791/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>当 Linus Torvalds <a href="https://lwn.net/ml/all/CAHk-=wjpN3XkKU+JX6zoh_bzJXr1aPYN4FY14UX0z7yCidosPQ@mail.gmail.com/">发布 7.3-rc1</a> 并关闭合并窗口时，主线已拉入 <strong>15,267</strong> 个非合并变更集——这是内核历史上 -rc1 提交数第二高（仅 6.7-rc1 含近 3000 个 bcachefs 历史提交更高）。其中约 13,000 个是在<a href="https://lwn.net/Articles/1089244/">首份 7.3 合并窗口总结</a>之后进入。窗口后半段最有趣的改变包括：</p>
+
+                    <h3>架构相关</h3>
+                    <ul>
+                        <li>s390 新增基于通用 cpuidle 基础设施的 cpuidle 子系统；s390 还用 Clang 的软件完整性特性获得内核控制流完整性支持。</li>
+                    </ul>
+
+                    <h3>BPF</h3>
+                    <ul>
+                        <li>BPF kfunc 可标记 <code>KF_SPINLOCK_SAFE</code>，表明可在持锁时安全调用。</li>
+                        <li>更易把 arena 指针传入 kfunc：参数名加魔法后缀 <code>__arena</code> 会自动偏移进 arena 空间并转换类型，<code>__arena__nullable</code> 用于可能为 NULL 的指针；亦适用于 struct_ops 参数。</li>
+                        <li>BPF 程序可访问全局每 CPU 数据。</li>
+                        <li>BPF 验证器在验证错误时提供更多信息，便于调试。</li>
+                    </ul>
+
+                    <h3>核心内核</h3>
+                    <ul>
+                        <li>sched_ext 的<a href="https://lwn.net/Articles/1082717/">子调度器特性</a>剩余部分已合并并宣布完成：根 BPF 调度器可把 cgroup 子树交给嵌套子调度器，附带可撤销的 CPU 授权。</li>
+                        <li>动态探针（kprobes/uprobes/fprobes）可用内核 BTF 数据做简单类型转换，7.3 中大幅扩展；启动期探针支持也改进。</li>
+                        <li>内核获得更好的虚拟机工作集跟踪（堪称迄今合并的最大块 LLM 辅助核心代码）。</li>
+                        <li><a href="https://docs.kernel.org/mm/damon/">DAMON</a> 支持仅数据属性的监控。</li>
+                        <li><a href="https://lwn.net/Articles/1033364/">kexec 交接</a>机制改进了对启动期大页的处理（实时更新内核时保留）。</li>
+                    </ul>
+
+                    <h3>文件系统与块 I/O</h3>
+                    <ul>
+                        <li><a href="https://docs.kernel.org/filesystems/ntfs3.html">ntfs3</a> 获基础备用数据流（ADS）支持（文件名后加冒号访问，如 <code>cat file:query_streams</code>）。</li>
+                        <li>竞争性的 ntfs 文件系统获 Windows 覆盖过滤器（WOF）压缩的只读支持。</li>
+                        <li>NFS 服务器获目录委派的 <code>CB_NOTIFY</code> 支持，可在目录内特定变更时通知对端，多数情况可保留缓存。</li>
+                        <li>Btrfs 自由空间缓存 v1 自 6.11 弃用，7.3 中彻底移除（旧文件系统仍可用，可用 <code>btrfstune</code> 转 v2）。</li>
+                        <li>自 5.9 弃用的 <code>usebackuproot</code> Btrfs 挂载选项已移除，改用 <code>rescue=usebackuproot</code>。</li>
+                        <li>块设备缓冲 I/O 可用 <code>RWF_DONTCACHE</code> 避免数据留在页缓存。</li>
+                        <li>内核态 SMB 服务器 <a href="https://docs.kernel.org/filesystems/smb/ksmbd.html">ksmbd</a> 新增 Apple Time Machine 支持、每共享 SMB3 加密、SMB Direct RDMA 加密等。</li>
+                        <li><a href="https://docs.kernel.org/filesystems/fuse/">FUSE</a> 配合 io_uring 时更好支持缓冲池与零拷贝 I/O。</li>
+                        <li>F2FS 可动态从文件系统池移除分区并稍后加回。</li>
+                    </ul>
+
+                    <h3>硬件支持</h3>
+                    <ul>
+                        <li><strong>时钟</strong>：R-Car X5H、Amlogic A9、Rockchip RV1106、Qualcomm Glymur/EVA/相机/显示/图形、Hawi 视频、Maili 视频、ESWIN EIC7700、UltraRISC DP1000、Cixtech Sky1 音频、MediaTek MT8173 等。</li>
+                        <li><strong>GPIO/引脚控制</strong>：Realtek DHC RTD1625、MediaTek MT6858、Airoha en7523/an7563、Qualcomm Maili。</li>
+                        <li><strong>图形</strong>：Anbernic TD4310、Chipone ICNA35XX、Ilitek ILI9488/ILI7807S、Renesas R63419 双 DSI、Novatek NT36536 面板。</li>
+                        <li><strong>硬件监控</strong>：Silergy SQ24860、ROHM BD12780/BD12790 热插拔、PolarFire SoC 温度电压、MPS MPQ82D00、ADI MAX16545/MAX16550/Volterra VT7505 PMBus、Altera SoC FPGA、Qualcomm SPMI PMIC MBG 等。</li>
+                        <li><strong>工业 I/O</strong>：ADI ADF41513 PLL、QST QMC5883L/QMC6308 磁力计、NXP MCF54415 DAC、MediaTek MT6323 PMIC ADC、AMD Versal 系统监视器、TI ADS112C14/ADS122C14、InvenSense ICM-42607、Analog Devices LTC2378、Sensirion SLF3S 液流、Microchip MCP47A1 等。</li>
+                        <li><strong>输入</strong>：Imagis ISA1200 触感、MSI Claw 手柄、HyperX 静音键、AMD SFH 平板模式开关。</li>
+                        <li><strong>媒体</strong>：Sony IMX471、IMX678 传感器。</li>
+                        <li><strong>杂项</strong>：R-Car X5H 电源域、Spreadtrum SC2730 稳压、Nuvoton MA35D1 QSPI/看门狗、LeapIO RAID、TI BQ25630/ SG Micro SGM41542 充电、AMD AXI I3C、Axiado 邮箱、AMD Halo Box RGB LED、SpacemiT K3 USB3/PCIe PHY、Qualcomm QMP PCIe PHY、Airoha SMC eFuse、Intel 硅安全引擎、Qualcomm MAILI 互联、AMD MicroBlaze/V BRAM 远程处理器、ESWIN/Cix 复位、ADI LTC3220 18 通道 LED、Silergy SY7758 背光等。</li>
+                        <li><strong>网络</strong>：ADI ADIN1140 10BASE-T1S PHY/MAC-PHY、Morse Micro mm81x WiFi、NXP IW61x、Realtek 8922DE/DE-VS、DAPU DAP8211R(I)、Intel E2100 控制面、MediaTek MT7628 嵌入式交换。</li>
+                        <li><strong>声音</strong>：AWINIC AW88399、Qualcomm WSA885X、Realtek RT766 SDCA。</li>
+                    </ul>
+
+                    <h3>杂项</h3>
+                    <ul>
+                        <li>用户空间 <code>perf</code> 工具为 <code>perf c2c</code> 新增函数视图。</li>
+                    </ul>
+
+                    <h3>网络</h3>
+                    <ul>
+                        <li>可在 VXLAN、GENEVE 管理的 UDP 隧道中使用<a href="https://lwn.net/Articles/884104/">大 TCP 报文</a>。</li>
+                    </ul>
+
+                    <h3>安全相关</h3>
+                    <ul>
+                        <li>新 sysctl 旋钮 <code>crypto/af_alg_restrict</code> 控制用户空间访问 <code>AF_ALG</code> 加密 API（默认部分限制，未来可能彻底移除）。</li>
+                        <li>签名 BPF 程序验证收紧：加载前先验证程序元数据的完整性。</li>
+                        <li><code>landlock_restrict_self()</code> 新增 <code>LANDLOCK_RESTRICT_SELF_NO_NEW_PRIVS</code> 标志（新规则集设置成功后才置"无新特权"）。</li>
+                        <li>AppArmor 支持加载压缩策略。</li>
+                    </ul>
+
+                    <h3>内核内部变更</h3>
+                    <ul>
+                        <li>Rust 支持新增：I/O 类型与投影、<a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=e052daab94ee">fwctl API</a>、可睡眠 RCU（SRCU）。</li>
+                        <li>新 <a href="https://lwn.net/Articles/1078697/#pv">rv 唤醒监视器</a>可报告低优先级任务唤醒实时任务（常是优先级反转迹象）。</li>
+                        <li>加速 RCU 宽限期现在会一并调用普通回调。</li>
+                        <li>内存分配分析特性新增 <code>ioctl()</code>，可在传数据给用户空间前过滤，显著提升性能。</li>
+                        <li>交换子系统底层围绕新 <code>swap_ops</code> 结构重构。</li>
+                        <li>导出符号：移除 153 个，新增 523 个；kfunc 移除 3 个，新增 32 个。</li>
+                    </ul>
+
+                    <p>7.3-rc1 由 2,450 名开发者贡献，其中 520 名为首次贡献者。1,264 个提交带 Assisted-by 标签（约 8%，但肯定低估了 LLM 辅助提交）。接下来是稳定期，7.3 大概率 10 月 18 日发布。7.2 在 -rc1 后应用超 3,000 个提交；若重演，7.3 将成为提交数最多的内核版本。</p>
+                    <div class="info-box note">
+                        <p><strong>结论</strong>：7.3-rc1 以 15,267 个变更集成史上第二高，含 sched_ext 子调度器完成、ntfs3 ADS、ksmbd RDMA 加密、AF_ALG 限制、Rust fwctl/SRCU 等；LLM 辅助提交约 8%，7.3 有望成提交数最多的版本。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 专题文章 6 -->
+            <div class="article" id="article6">
+                <div class="article-header">
+                    <span class="article-category">安全 / 磁盘加密</span>
+                    <h2>安全挂起 LUKS 加密磁盘</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>2026年9月2日</span>
+                        <span><a href="https://lwn.net/Articles/1090568/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>笔记本睡眠时内存并非不可读——合适工具可挂上内存总线读出内容，<a href="https://en.wikipedia.org/wiki/Cold_boot_attack">冷启动攻击</a>理论上能在断电后短时间内从内存读值。这几乎是硬件的 unavoidable 事实，但有些用户仍希望即便发生，长期加密密钥（如全盘加密密钥）也不可读。2026 年 6 月，Ingo Blechschmidt <a href="https://mathstodon.xyz/@iblech/116769502749142438">发现</a>：2024 年 5 月发布的 6.9 之后版本，笔记本睡眠时即便配置为清除磁盘加密密钥，也并未清除。他迅速找到潜在修复并已合入，但并非全面方案。</p>
+
+                    <h3>带着加密磁盘睡眠</h3>
+                    <p>清除运行系统的磁盘加密密钥有个"鸡生蛋"问题：没有密钥，任何读盘尝试都会阻塞。若在清除密钥后睡眠，唤醒时系统会试图从盘读屏幕锁程序所需文件，导致整个系统死锁。因此多数发行版睡眠时不实际清除密钥，而是留在内存以提供更顺畅体验（冷启动攻击罕见且困难）。想要更强保护的用户可手动开启——Debian 首个允许，用一套较复杂的机制：睡眠前创建一个 RAM 盘，含提示用户输入磁盘加密口令所需的所有程序与配置；唤醒时先运行该提示程序，重新解锁磁盘并把密钥加入内核 keyring，之后磁盘访问成功，其余用户空间程序正常唤醒。</p>
+                    <p>Debian 将该方案打包为 <a href="https://manpages.debian.org/unstable/cryptsetup-suspend/cryptsetup-suspend.7.en.html"><code>cryptsetup-suspend</code></a>，已移植到其他发行版。Blechschmidt 尝试将其移植到 NixOS 时，发现测试虚拟机内存中仍残留加密密钥；进一步测试表明问题在内核。"信任一个安全机制多年，却发现它从未做过该做的事，有种独特的令人不安。"</p>
+
+                    <h3>漏洞</h3>
+                    <p>2024 年 Christian Brauner 清理 <a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=a28d893eb3270cf62c10dd8777af0d8452cdc072">device-mapper 代码</a>，改用基于文件描述符的块设备接口。重构中这行：</p>
+                    <pre><code>    bdev_handle = bdev_open_by_dev(dev, mode, _dm_claim_ptr, NULL);</code></pre>
+                    <p>变成了：</p>
+                    <pre><code>    bdev_file = bdev_file_open_by_dev(dev, mode, _dm_claim_ptr, NULL);</code></pre>
+                    <p>为何出问题并不明显，实际与请求块设备操作的进程之<a href="https://www.man7.org/linux/man-pages/man7/thread-keyring.7.html">线程 keyring</a>处理有关。当用户空间进程（如 <code>cryptsetup</code> 请求通过清除密钥来重新锁盘）获取对加密磁盘 device-mapper 设备的引用时，创建的 <code>bdev_file</code> 持有对线程 keyring 的引用；旧的 handle 接口不会，行为因此改变。</p>
+                    <p>通常内核 <code>struct file</code> 缓存相关凭据是合理的，但此处内核在相应用户空间进程退出后仍保留对该文件的引用，使含磁盘加密密钥副本的线程 keyring 存活。于是即便内核按要求清除了自己的密钥副本，线程 keyring 中的副本仍残留。</p>
+                    <p><a href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=981ccd97f7153d310dfa92a534525bbaf46752c2">修复</a>（2026 年 7 月合入 7.2）是让内核用自身凭据而非线程 keyring 创建文件：</p>
+                    <pre><code>    scoped_with_kernel_creds()
+        bdev_file = bdev_file_open_by_dev(dev, mode, _dm_claim_ptr, NULL);</code></pre>
+                    <p>这样 <code>cryptsetup</code> 退出时线程 keyring 即释放，内核副本按要求清除，密钥不再常驻内存。但对 7.2 之前内核无效。对此，cryptsetup 维护者 Ondrej Kozina 在工具中<a href="https://gitlab.com/cryptsetup/cryptsetup/-/merge_requests/937">加了变通</a>：创建一个额外的中介 keyring，退出时可显式撤销，使即便有 bug 的内核固定了线程 keyring 中的密钥，该密钥也无法再用于访问主加密密钥。该变更包含在 7 月底的 <a href="https://cdn.kernel.org/pub/linux/utils/cryptsetup/v2.8/v2.8.7-ReleaseNotes">2.8.7 版</a>。Kozina 强调显式释放 keyring 本身是重要预防（因其他内核子系统也可能固定 keyring）；Blechschmidt 的修复仅适用于物理设备支撑的加密块设备，loopback 等冷门配置仍可能遇该 bug。</p>
+
+                    <h3>NixOS 的新挂起代码</h3>
+                    <p>Blechschmidt 的移植最终成功，发布了在 NixOS 上类似安全挂起的<a href="https://codeberg.org/iblech/secure-suspend#experimental-secure-suspend-to-ram-for-nixos">实验程序</a>，并加了<a href="https://github.com/NixOS/nixpkgs/pull/532499">集成测试</a>验证睡眠时密钥被正确清除，防止 bug 被无意重新引入。</p>
+                    <p>Debian 的 <code>cryptsetup-suspend</code> 有个良性竞态：先清密钥再让内核睡眠，期间内核任务访问磁盘可能锁死等待密钥，导致睡眠失败（轻则烦人，重则过热）。Blechschmidt 的 NixOS 版用内核补丁同时清除密钥并触发睡眠，消除竞态，仍用 RAM 盘在唤醒后让用户输入口令。</p>
+                    <p>考虑到 <code>cryptsetup-suspend</code> 在任何发行版都默认关闭，究竟多少用户真会被该 bug 影响并不清楚。默认情况下睡眠时密钥留内存，似乎未引起太多担忧。但值得高兴的是，一旦显式配置，Linux 现在会切实在睡眠时清除加密密钥。</p>
+                    <div class="info-box warning">
+                        <p><strong>结论</strong>：6.9 后的内核在睡眠时未清除 LUKS 密钥（因 device-mapper 重构使线程 keyring 被文件固定而残留），7.2 修复 + cryptsetup 2.8.7 变通已解决；NixOS 实验方案还消除了 Debian 方案的睡眠竞态。默认仍不清除，需显式启用。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for September 3, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1090826/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全</h3>
+                    <h4>本周安全引述</h4>
+                    <blockquote>
+                        <p>"当安全 bug 报告永远保密时，很难评估开源项目的安全性。用户应当看到安全 bug 报告，所以处理完问题后请记得取消报告的保密设置。很少有理由把报告永远保密。若你不在未来几个月内披露，它大概率本就该公开了。"</p>
+                        <p>—— Michael Catanzaro（GNOME）</p>
+                    </blockquote>
+
+                    <h4>内核发布状态</h4>
+                    <p><strong>当前开发内核是 7.3-rc1</strong>，8 月 30 日发布："没什么特别突出——除了它很大。不是史上最大的 rc1，但提交数绝对排得上号。" 本版含 2,450 名开发者的 15,267 个非合并变更集，520 名为首次贡献者。</p>
+                    <p><strong>稳定更新</strong>：7.2.1、7.1.11、6.18.47、6.12.106、6.6.154、6.1.185、5.15.218、5.10.267 于 8 月 27 日发布；仅修复单项的 7.2.2、7.1.12、6.18.48、6.12.107、6.6.155、6.1.186、5.15.219、5.10.268 于 28 日；7.2.3、7.1.13、6.18.49、6.12.108、6.6.156、6.1.187、5.15.220、5.10.269 于 9 月 2 日发布（注意 7.1.13 是 7.1 的最终更新）。</p>
+
+                    <h4>Ryabitsev：诡异的爬虫</h4>
+                    <p>Konstantin Ryabitsev 写了<a href="https://people.kernel.org/monsieuricon/creepy-crawlies">带硬数字的博客</a>，谈 AI 爬虫对 git.kernel.org 的影响：</p>
+                    <blockquote>
+                        <p>"今天 git.kernel.org 每天收到约 600 万次查看随机提交的需求。其中 66% 仍被 Anubis 挑战立即挡掉，但 33% 现在会算数学题并到达主站——因为显然我们提供的内容值得花大量算力算 Anubis 挑战。无法确切判断哪些是 bot、哪些真人——但若它在要一个随机旧 fork 里的旧提交，大概率不是真在干活的开发者。在若干慷慨假设下，合法请求只占 git.kernel.org 流量的约 2%——其余都是爬虫。"</p>
+                    </blockquote>
+
+                    <h4>本周引述</h4>
+                    <blockquote>
+                        <p>"如果我们真的又失去了 sparse 的维护者，且没人愿意站出来，我可以试着做个最小化的工作。但老实说：我觉得正好二十年没真碰过 sparse 了——我大概是 2006 年 9 月停的，然后 Josh Triplett 接手，后来是 Chris Li 和 Luc Van Oostenryck 在维护。所以我会像对待我的 microemacs'维护'一样——偶尔为之，可能用 LLM。因为我真不愿意投入很多精力。这部分是我钓某个真想维护它的人；如果有人把'我会用 LLM'视为威胁：那正是它的本意。"</p>
+                        <p>—— Linus Torvalds</p>
+                    </blockquote>
+
+                    <h3>发行版</h3>
+                    <h4>Debian 投票允许"负责任地使用生成式 AI"</h4>
+                    <p><a href="https://lwn.net/Articles/1087134/">Debian 总决议投票</a>结果公布，胜出的是<a href="https://www.debian.org/vote/2026/vote_002#texte">选项 5：负责任地使用生成式 AI</a>：</p>
+                    <blockquote>
+                        <p>"Debian 既不认可也不禁止在 Debian 项目内发布的软件、打包、文档及其他媒体的开发、维护或文档编写中使用生成式 AI 工具。我们承认这类工具在负责任使用时能大幅提升贡献者生产力，让志愿者把有限时间更多花在需要专业技术、判断、审查与协作的工作上。Debian 项目仍期望所有提交给 Debian 的贡献，无论用什么工具、怎么产生，都满足同样的质量、正确性、可维护性与法律合规标准。使用生成式 AI 工具不减轻提交者对其工作的责任。贡献者在纳入 Debian 前应理解、审查、测试并在适当时修改 AI 辅助输出。"</p>
+                    </blockquote>
+
+                    <h3>开发</h3>
+                    <h4>Dolphin 26.08 与 KIO 性能改进</h4>
+                    <p>Méven Car 写了两篇博客（<a href="https://blogs.kde.org/2026/08/26/dolphin-26.08-and-kio-perf-improvements/">其一</a>、<a href="https://blogs.kde.org/2026/08/27/dolphin-26.08-and-kio-part-two-what-got-faster-and-smaller/">其二</a>）。第一篇讲 Dolphin 文件管理器 26.08 与 <a href="https://en.wikipedia.org/wiki/KIO">KIO</a> 框架的新特性与性能工作；第二篇看性能改进与基准。</p>
+                    <blockquote>
+                        <p>"拷贝大量小文件比 4 月快一倍以上。随文件变大收益递减，这符合预期：修复的是每文件开销，一旦每个文件带上一兆字节真实 I/O，开销就不再是你等待的东西。与 <code>cp</code> 仍有差距，KIO 做的事比 <code>cp</code> 多，但不是五倍多，关闭大部分差距的批处理工作仍在进行。"</p>
+                    </blockquote>
+
+                    <h4>Firefox 155 发布</h4>
+                    <p><a href="https://www.firefox.com/en-US/firefox/155.0/releasenotes/">155 版</a>发布。 notable 变化：地址栏显示已屏蔽的广告跟踪器计数、容器重排序、<code>mailto:</code> 链接仅经显式用户动作打开；"强制门户"域名改用 firefox-portal-detection.com（可能需改网络白名单）。另含<a href="https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/155">影响 Web 开发者的变更</a>与若干安全修复。</p>
+
+                    <h4>Incus 7.4 发布</h4>
+                    <p><a href="https://discuss.linuxcontainers.org/t/incus-7-4-has-been-released/27169">7.4 版</a>发布。 notable：UEFI Secure Boot 密钥管理、容器在 Incus 实例间"近实时"迁移、磁盘与网络设备突发 I/O 限制。</p>
+
+                    <h4>Netdev 0x1A 视频与 slides 上线</h4>
+                    <p><a href="https://netdevconf.info/0x1A/">Netdev 0x1A</a>（7 月 13–16 日，罗马）所有场次<a href="https://netdevconf.info/0x1A/pages/sessions.html">视频与 slides 已可用</a>，主题含 Linux QUIC、共享内存 socket 传输、eBPF DDoS 防护等。</p>
+
+                    <h4>OpenShot 4.0 发布</h4>
+                    <p><a href="https://www.openshot.org/blog/2026/08/30/openshot-40-record-edit-color-like-never-before/">4.0 版</a>发布：可直接录屏、摄像头、麦克风、系统音频到项目；用色轮、曲线、LUT、专业示波器调色；用本地运行的 ML 模型隔离主体，生成动画音频可视化到电影级外观。</p>
+
+                    <h4>本周开发引述</h4>
+                    <blockquote>
+                        <p>"另一个要考虑的维度：几乎全部专利诉讼只涉及持专利的公司，超出多数用户与开发者的直接经验；而每个项目的每个贡献者都是版权持有者。这意味着任何条款都可能波及远更多人，甚至个人。此外，这种波及甚广的工具 inevitably 会诱使公司用作其他目的的手段，比如压制个人对其不良行为的投诉。所以允许开源许可证用版权主张作为惩罚触发点，我们开启了暗模式影响整个开源社区的前景。作为许可证审查社区，我们应对这种范围的急剧扩张及其随之而来的博弈空间剧增保持极度谨慎。"</p>
+                        <p>—— Simon Phipps</p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for September 3, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1090827/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：Asahi Linux 进展报告（8 月 26）、DistroWatch Weekly（8 月 31）、This week in Fedora（8 月 31）、openSUSE Tumbleweed 周评（8 月 28）、SparkyLinux News（9 月 1）、Ubuntu Weekly News（8 月 24，第 959 期）。</p>
+                    <p><strong>开发</strong>：Emacs News（8 月 31）；What's cooking in git.git（8 月 26/28/31 三期）；This Week in GNOME（8 月 28，TWIG 263）；GNU Tools Weekly News（8 月 30）；Golang Weekly（8 月 28，第 615 期）；Koha 社区通讯（8 月）；Last Week in Kubernetes Development（8 月 28）；LibreOffice 项目与社区回顾（9 月 1）；LLVM Weekly（8 月 31，第 661 期）；This Week in Matrix（8 月 28）；OCaml Weekly News（9 月 1）；Perl Weekly（8 月 31，第 788 期）；This Week in Plasma（8 月 28）；PyCoder's Weekly（9 月 1，第 750 期）；Python Core Dispatch（8 月 27）；Weekly Rakudo News（8 月 31）；Ruby Weekly News（8 月 27，第 814 期）；This Week in Rust（8 月 26，第 666 期）；Wikimedia Tech News（8 月 31）。</p>
+                    <p><strong>会议记录</strong>：Fedora FESCo meeting minutes（9 月 1）；openSUSE Release Engineering minutes（8 月 27）。</p>
+                    <p><strong>杂项</strong>：Free Software Supporter（9 月）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>9 月 6 日</td><td>10 月 6 日</td><td>Real-time Linux User Forum</td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>次年 1 月 20–22 日</td><td>Everything Open</td><td>布里斯班，澳大利亚</td></tr>
+                            <tr><td>9 月 18 日</td><td>9 月 19 日</td><td>Software Freedom Day NJ</td><td>蒙特克莱尔，美国</td></tr>
+                            <tr><td>10 月 1 日</td><td>11 月 7–8 日</td><td>OpenFest 2026</td><td>索非亚，保加利亚</td></tr>
+                            <tr><td>10 月 1 日</td><td>11 月 12–13 日</td><td>Ubuntu Summit 26.10</td><td>线上</td></tr>
+                            <tr><td>11 月 1 日</td><td>次年 4 月 1–4 日</td><td>Southern California Linux Expo</td><td>帕萨迪纳，美国</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 30 日–9 月 5 日</td><td>FOSS4G Hiroshima 2026</td><td>广岛，日本</td></tr>
+                            <tr><td>9 月 8–10 日</td><td>RustConf 2026</td><td>蒙特利尔，加拿大</td></tr>
+                            <tr><td>9 月 17–18 日</td><td>Git Merge</td><td>里斯本，葡萄牙</td></tr>
+                            <tr><td>9 月 19–24 日</td><td>Akademy 2026</td><td>格拉茨，奥地利</td></tr>
+                            <tr><td>9 月 19 日</td><td>Software Freedom Day NJ</td><td>蒙特克莱尔，美国</td></tr>
+                            <tr><td>9 月 19–20 日</td><td>Nextcloud Community Conference 2026</td><td>柏林，德国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td>Kernel Recipes</td><td>巴黎，法国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td>Reproducible Builds Summit</td><td>哥德堡，瑞典</td></tr>
+                            <tr><td>9 月 25–27 日</td><td>PostmarketOS and Alpine Linux Conference</td><td>亚琛，德国</td></tr>
+                            <tr><td>9 月 28 日–10 月 1 日</td><td>Alpine Linux Persistence and Storage Summit</td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>9 月 28–30 日</td><td>X.Org Developers Conference</td><td>多伦多，加拿大</td></tr>
+                            <tr><td>9 月 30 日–10 月 1 日</td><td>All Systems Go! 2026</td><td>柏林，德国</td></tr>
+                            <tr><td>10 月 1 日</td><td>Open Tech Day | Software-defined Storage</td><td>纽伦堡，德国</td></tr>
+                            <tr><td>10 月 1–2 日</td><td>embedded Linux for Safe and Secure Applications</td><td>哥廷根，德国</td></tr>
+                            <tr><td>10 月 2–4 日</td><td>GNU Tools Cauldron</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 3–4 日</td><td>openSUSE.Asia Summit 2026</td><td>日惹，印度尼西亚</td></tr>
+                            <tr><td>10 月 3–4 日</td><td>Linux Days 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 5–7 日</td><td>Linux Plumbers Conference 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 6 日</td><td>Yocto Project Developer Day 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 6 日</td><td>Real-time Linux User Forum</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 7–9 日</td><td>Open Source Summit Europe</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 7–9 日</td><td>Embedded Linux Conference Europe</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 8 日</td><td>Linux Security Summit Europe</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 14–17 日</td><td>PyCon South Africa</td><td>开普敦，南非</td></tr>
+                            <tr><td>10 月 16–18 日</td><td>VideoLAN Developers' Days</td><td>罗马，意大利</td></tr>
+                            <tr><td>10 月 18–20 日</td><td>All Things Open</td><td>罗利，美国</td></tr>
+                            <tr><td>10 月 20–23 日</td><td>PostgreSQL Conference Europe</td><td>瓦伦西亚，西班牙</td></tr>
+                            <tr><td>10 月 20–23 日</td><td>The Matrix Conference</td><td>马尔默，瑞典</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>本期涵盖 8 月 27 日至 9 月 2 日期间各发行版发布的大量安全公告（完整条目见 <a href="https://lwn.net/Articles/1092150/">LWN 安全公告摘要</a>），涉及 AlmaLinux、Debian（stable 与 LTS）、Fedora、Gentoo、Mageia、Oracle、Red Hat、Slackware、SUSE、Ubuntu。受影响软件包广泛，例如：kernel、firefox、chromium、bind、openssl、libxml2、golang、nginx、nodejs、postgresql、python、rsync、samba、sqlite、thunderbird、webkit2gtk、zfs 等。其中 Debian 发布了 bubblewrap、chromium、cockpit、emacs、gimp、kernel、libdbi-perl、libnet-dns-perl、librabbitmq、openjdk、roundcube、starlette、suricata-update、wireshark、xrdp 等 stable/LTS 公告；Fedora 发布 GitPython、apache-ivy、bind、bluez、bubblewrap、curl、emacs、expat、kernel、knot、openssh、openssl 等；Red Hat 集中发布 bind、dracut、glib2、golang、grafana、kernel、nodejs、openssl、osbuild-composer、tar、unbound 等多批公告；SUSE 与 Ubuntu 亦发布涵盖浏览器、加密库、内核、工具链等的大量更新。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（8 月 26 日至 9 月 2 日）内核相关补丁数量庞大，以下按类别择要摘录代表性条目，完整列表见 <a href="https://lwn.net/Articles/1090827/">LWN Announcements 页面</a>。</p>
+
+                    <h4>内核发布</h4>
+                    <ul>
+                        <li>Linux 7.3-rc1（Linus Torvalds，8 月 30）；7.2.3、7.2.2、7.2.1、7.1.13（Greg KH，9 月 2 / 8 月 28 / 8 月 27）；6.18.49、6.12.108、6.6.156、6.1.187、5.15.220、5.10.269 等稳定更新（9 月 2）。</li>
+                    </ul>
+
+                    <h4>架构相关</h4>
+                    <ul>
+                        <li>arm64：fixmap 页表只读映射、Generic Entry 转换、FF-A 借出内存从直接映射解映射；LoongArch KVM 独立 vmid；riscv 加 Ssqosid 与 CBQRI resctrl 支持；sparc64 加 seccomp 过滤；x86/resctrl 加内核模式（如 PLZA）支持；SEV-SNP BTB 隔离与 IBPB-on-Entry 客户特性。</li>
+                    </ul>
+
+                    <h4>核心内核</h4>
+                    <ul>
+                        <li>sched：LLC 粒度的缓存感知聚合、长任务名支持、通过 prctl 的每任务缓存感知调度控制；</li>
+                        <li>reclaimable 内核栈、rseq 加 RSEQ 操作支持、wprobe x86 watchpoint、pidfd 加任务路径 ioctl、proxy execution 兼容 sched_ext、NVIDIA Olympus 上启用 preferred SMT 兄弟；</li>
+                        <li>bpf：允许 arena 指针按值返回、加 UHMUL/SHMUL 指令；liveupdate 会话取回；ftrace 栈迹去重；kdump 缩减 vmcore 大小。</li>
+                    </ul>
+
+                    <h4>开发工具</h4>
+                    <ul>
+                        <li>objtool 动态检测 noreturn；kbuild 在 .cmd 记录真实 prerequisites；</li>
+                        <li>bpf JIT 程序加 KASAN 检查支持；rv 加 BPF 监视器支持；per-CPU debugfs 文件；firewire core 加 KUnit 测试；kselftest/arm64 覆盖与 KVM 交互。</li>
+                    </ul>
+
+                    <h4>设备驱动（择要）</h4>
+                    <ul>
+                        <li>Rust 显示驱动（drm/vino 用于 DisplayLink DL3）、nova-core GPU 中断与 NVKV 编解码、drm/tyr Job IRQ 与 VM/BO ioctl；</li>
+                        <li>RDMA/erdma 支持非连续内核队列缓冲；Apple M1/M2/M3 初始 USB4/Thunderbolt 支持；</li>
+                        <li>HID asus 加 ROG Ally 掌机支持；r8169 加 RSS 与 phylink；wifi rtw89 更新 RTL8922D 并启用 P2P；</li>
+                        <li>net: mana 重配置队列集、并发 HWC 请求与动态队列深度；多家 SoC（Qualcomm、MediaTek、Rockchip、Amlogic、RISC-V）相机/音频/网络/时钟驱动。</li>
+                    </ul>
+
+                    <h4>设备驱动基础设施</h4>
+                    <ul>
+                        <li>Rust PCI 能力基础设施与 SR-IOV 支持；rust drm KMS 抽象；Rust 实现 SPDM；overlay 代码保持 /aliases 同步；DRM backlight 能力；vfio/pci 处理 PCI 错误恢复并向用户空间报告状态；rust io 支持寄存器投影；leds 硬件发起的硬件控制触发转换；drm_work_fence 辅助。</li>
+                    </ul>
+
+                    <h4>文件系统与块层</h4>
+                    <ul>
+                        <li>ceph kclient 加 'lazyio' 挂载选项；f2fs 引入元数据缓存、每文件异地更新控制、多设备可扩存储；hfsplus/minix 转 iomap；fuse 报告节点失效为 stale；nfsd 通过 Netlink 暴露 NFSv4 客户状态；jffs2 写验证扩至所有路径；block/mq-deadline 加 prio_enable 开关；BPF streams 文件描述符接口。</li>
+                    </ul>
+
+                    <h4>内存管理</h4>
+                    <ul>
+                        <li>bpf 驱动的主动 memcg 回收；xswap（zswap 支撑的可扩交换设备）；arm64 内核复制特性；mglru 加速 inc_min_seq 修冷热反转；guest_memfd 就地转换；DAMON 大页 collapsing 自动调优；mTHP 始终启用；用户态页表释放 RCU 安全；hugetlb 访问监控。</li>
+                    </ul>
+
+                    <h4>网络</h4>
+                    <ul>
+                        <li>virtio_net RX 队列看门狗与 ethtool 流规则；net/sched 在变更路径夹量子/psched_mtu；Bluetooth L2CAP 锁注解；MCTP usblib 扩 KUnit；QRTR 多端点；硬件 pacing offload；隧道加核心与 gre drop reasons；neighbour 将 arp_tbl/nd_tbl 命名空间化；netfilter 初步支持 IPv4 over IPv6 与 SIT flowtable offload。</li>
+                    </ul>
+
+                    <h4>安全相关</h4>
+                    <ul>
+                        <li>BPF keyring 与签名加载器 ML-DSA 支持；PTRACE_SET_SYSCALL_INFO 加 seccomp 系统调用跳过；BPF 接口应用 Landlock 规则集；landlock 支持 MPTCP bind/connect 限制；skb secmarks 转 x-array 索引。</li>
+                    </ul>
+
+                    <h4>虚拟化与容器</h4>
+                    <ul>
+                        <li>KVM nVMX 调整 VMPTRLD/VMPTRST 与 eVMCS 行为；TDX 校验可直接配置 CPUID；x86/pmu 加 mediated vPMU PerfMon v5；mshv 加 MSHV 根分区 SEV-SNP 支持；arm64 pKVM 超管堆分配器、GCS 客户支持、APX 客户启用；LVBS 支持 Hyper-V 客户。</li>
+                    </ul>
+
+                    <h4>杂项</h4>
+                    <ul>
+                        <li>rust 加 ID 区间保留与 cv! 常量转换宏；LTTng 2.16.0；zstd 用 x86 特性基础设施做 BMI2 分发；rust xarray 加预加载 entry API；util-linux v2.42.3；BTF 内联函数支持；nftables 1.1.7。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <!-- 期刊导航 NAV-START -->
+        <nav class="nav-bar bottom" aria-label="期刊导航">
+            <a class="nav-btn" href="index.html">🏠 主页</a>
+            <a class="nav-btn nav-current" href="2026-09-03.html">📰 最新</a>
+            <a class="nav-btn" href="2026-08-27.html">← 上一个</a>
+            <span class="nav-btn nav-disabled">下一个 →</span>
+            <span class="nav-current-label">2026年9月3日</span>
+        </nav>
+        <!-- 期刊导航 NAV-END -->
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1090824/" target="_blank">LWN.net Weekly Edition for September 3, 2026</a></p>
+            <p>更新时间：2026年9月11日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>

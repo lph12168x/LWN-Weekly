@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LWN 周刊 - 2026年8月27日</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📰</text></svg>">
+</head>
+<body>
+    <button class="theme-toggle" id="themeToggle" aria-label="切换主题">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-badge">LWN 周刊中文版</div>
+            <h1>LWN.net Weekly Edition</h1>
+            <p class="edition-date">2026年8月27日</p>
+            <p class="edition-desc">Linux 和自由软件周刊 - 中文翻译</p>
+            <a href="index.html" class="back-link">← 返回期刊列表</a>
+        </header>
+
+        <!-- 期刊导航 NAV-START -->
+        <nav class="nav-bar" aria-label="期刊导航">
+            <a class="nav-btn" href="index.html">🏠 主页</a>
+            <a class="nav-btn nav-current" href="2026-08-27.html">📰 最新</a>
+            <a class="nav-btn" href="2026-08-20.html">← 上一个</a>
+            <span class="nav-btn nav-disabled">下一个 →</span>
+            <span class="nav-current-label">2026年8月27日</span>
+        </nav>
+        <!-- 期刊导航 NAV-END -->
+
+        <main class="content">
+            <!-- 目录 -->
+            <div class="toc">
+                <h2>📑 目录</h2>
+                <ul>
+                    <li><a href="#article1">一起持续的 3D 打印机 AGPL 违规事件</a></li>
+                    <li><a href="#article2">审视 OpenMDW 许可证</a></li>
+                    <li><a href="#article3">如何免受量子计算威胁</a></li>
+                    <li><a href="#article4">7.3 合并窗口开启</a></li>
+                    <li><a href="#article5">用 Remind 在命令行玩老派日历</a></li>
+                    <li><a href="#article6">探视 Quickshell 桌面组件工具包</a></li>
+                    <li><a href="#briefs">📝 Brief items（社区简讯）</a></li>
+                    <li><a href="#announcements">📢 Announcements（公告）</a></li>
+                </ul>
+            </div>
+
+            <!-- 专题文章 1 -->
+            <div class="article" id="article1">
+                <div class="article-header">
+                    <span class="article-category">法律 / 自由软件许可</span>
+                    <h2>一起持续的 3D 打印机 AGPL 违规事件</h2>
+                    <div class="article-meta">
+                        <span>作者：Jake Edge</span>
+                        <span>2026年8月26日</span>
+                        <span><a href="https://lwn.net/Articles/1089390/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>在 FOSSY 2026 大会上，Software Freedom Conservancy（SFC）的成员 Bradley Kuhn、Karen Sandler 与 Denver Gingerich 做了关于 Bambu Lab 3D 打印机软件持续违反 <strong>AGPLv3</strong>（Affero 通用公共许可证第 3 版）的演讲。Kuhn 表示，这是他 30 年自由软件生涯中" activism opportunities（倡导机会）"最多的一段时期；SFC 近半年来从" triage disasters（处置灾难）"转向" triage opportunities（处置机会）"，成功让原本对自由软件一无所知的 3D 打印爱好者社区接触到了自由软件、自由文化与创作共享理念。</p>
+
+                    <h3>背景故事</h3>
+                    <p>3D 打印爱好者市场始于 DIY 运动（类似 Linux 从爱好成长为产业）。其核心工具是"切片软件"（slicer）——把模型切成打印机可执行的层。Alessandro Ranellucci 创建了 <strong>Slic3r</strong> 并主动采用 AGPLv3，以防出现" Slic3r as a service（把 Slic3r 当服务运营）"的封闭形态；最著名的衍生版本是 <strong>PrusaSlicer</strong>（Josef Prusa 的公司出品）。</p>
+
+                    <h3>Bambu 登场</h3>
+                    <p>中国公司 <strong>Bambu Lab</strong> 于 COVID 期间进入市场，到 2025 年已占据 500–3000 美元价位段打印机市场 38%–48% 的份额。其 Bambu Studio 基于修改过的 PrusaSlicer，却未按 AGPLv3 要求提供对应源代码。在社区施压后，其发布的"对应源码"仍然不完整。</p>
+                    <p>Bambu 的规避手段，恰恰正是 AGPLv3 想要防止的那一类：Bambu Studio 会弹窗下载两个 <code>.so</code> 文件（C++ 编译，源码中存在 <code>dlopen()</code> 动态加载），这些文件通过网络调用 Bambu 的服务器应用，并以一个特定的 <strong>User-Agent 字符串</strong>作为"密钥"。公司声称这是一种 DMCA 反规避机制。波兰用户 <strong>Paweł Jarczak</strong> 逆向了该字符串后遭到 DMCA 下架（由 GitHub 执行），其 OrcaSlicer 现由 SFC 的 <strong>baltobu 项目</strong>镜像托管。</p>
+                    <p>Gingerich 补充道，Bambu 还违反了 <strong>GPLv2</strong>——其基于 Buildroot 的固件未提供源码，呈现典型的"硅谷式"风投文化。</p>
+
+                    <h3>社区参与</h3>
+                    <p>Sandler 强调，此事吸引了大量新人进入自由软件世界，SFC 的筹款远超 25 万美元的目标（将聘请全职诉讼律师）。执法手段的讨论涵盖合同诉讼（如 SFC 诉 Vizio/Walmart 案，以第三方受益人身份）、版权诉讼等。Sandler 指出 GPL 并非"魔法粉尘"，需要"把脚放到火上"（hold feet to the fire，喻施压）。</p>
+                    <div class="info-box note">
+                        <p><strong>结论</strong>：根本问题是权力不平衡。自由软件运动与维修权（right to repair）运动需要持续推动立法与技术改进，才能对抗以专有手段锁定用户的硬件厂商。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 专题文章 2 -->
+            <div class="article" id="article2">
+                <div class="article-header">
+                    <span class="article-category">法律 / AI 治理</span>
+                    <h2>审视 OpenMDW 许可证</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>2026年8月21日</span>
+                        <span><a href="https://lwn.net/Articles/1089251/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>Linux Foundation 的 <strong>Mike Dolan</strong> 向 OSI（开放源代码促进会）提交了一份名为 <strong>OpenMDW</strong>（Open Model, Data, and Weights，开放模型、数据与权重）的新许可证，旨在为分发 LLM 及捆绑材料（软件、模型权重、文档）提供单一许可。该证核心类似 MIT 宽松许可证，明确不对模型输出设限，授予"所有版权、专利、数据库与商业秘密权利"，但要求用户自行承担权利清理责任（" YOU ARE SOLELY RESPONSIBLE FOR..."）。</p>
+
+                    <h3>争议焦点</h3>
+                    <p><strong>Pamela Chestek</strong> 质疑：该文本要求用户"清理权利"（clearing rights）实际不可能（尤其当训练数据未披露时），且可能被视为一项违约条件。最受争议的是<strong>终止条款</strong>：如果用户"提交、维持或自愿参与"主张模型材料侵犯专利或版权的诉讼，则所有授权终止（反诉除外）。</p>
+                    <p><strong>Richard Fontana</strong> 担忧该条款过宽，会波及无关材料（例如同一分发中的 Python 代码），可能违反 OSI 开放源代码定义第 9 条。<strong>Rob Landley、Kevin Fleming、Simon Phipps</strong> 提出了若干场景问题：第三方 fork 掺入专有代码怎么办？版权者因诉讼失去取证模型的权利又如何？Phipps 直言："一份在版权主张下撤回自由权（Freedom 0）的许可证，无法保证软件自由。"</p>
+
+                    <h3>回应与走向</h3>
+                    <p>Dolan 回应称终止条款是"对称设计"——因为模型发布者大多面临的是版权（而非专利）主张，需要将版权纳入才能实现 Apache-2.0 式的功能。<strong>Eric Schultz</strong> 则反驳这是"为模型创作者大规模侵犯版权提供特赦"。Chestek 指出不对称之处：生产者或许知道复制行为，接收者却要在不知情的情况下放弃索赔。</p>
+                    <p>对话暂时平息，OSI 似乎不会以当前形式批准该证，修改方向尚未确定。</p>
+                    <div class="info-box warning">
+                        <p><strong>结论</strong>：OpenMDW 试图降低分发"开放"模型的风险，却把侵权风险转嫁给用户；而普通自由软件许可证并不要求用户自证无版权问题。采用此证虽减少分发者风险，却凸显了"使用 LLM 本身"仍具高度不确定性。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 专题文章 3 -->
+            <div class="article" id="article3">
+                <div class="article-header">
+                    <span class="article-category">安全 / 后量子密码</span>
+                    <h2>如何免受量子计算威胁</h2>
+                    <div class="article-meta">
+                        <span>作者：Daroc Alden</span>
+                        <span>2026年8月24日</span>
+                        <span><a href="https://lwn.net/Articles/1088305/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>威胁是什么</h3>
+                    <p>实用量子计算机正临近（IBM 承诺 2026 年底推出 Kookaburra 处理器，达 1386 个物理量子位；分解 ECDSA 所需逻辑量子位已从 1425 降至 1154，但约需 500 个物理量子位纠一个逻辑位）。量子机擅长整数分解，威胁依赖 RSA、椭圆曲线（ECC）的<strong>非对称加密</strong>。对称加密不受影响，但密钥交换仍需公钥机制。密码界已标准化后量子算法（ML-KEM-768、ML-DSA），保守的混合方案是 <strong>X25519 + ML-KEM-768（X25519MLKEM768）</strong>。</p>
+
+                    <h3>网页浏览</h3>
+                    <p>这是最大的场景：Firefox 132、Chrome 131、Safari 26 已默认支持 X25519MLKEM768。服务端需要 <strong>OpenSSL 3.5.0+</strong>（2025 年 4 月）或 oqs-provider 库。Red Hat/openSUSE 通过 crypto-policies（<code>update-crypto-policies --set DEFAULT:PQ</code>）配置，Fedora 43 / RHEL 10.1 之后默认偏好后量子；Debian/Ubuntu 直接编辑 openssl.cnf。Caddy（Go 1.24+）默认启用。建议显式设置 <code>Groups</code> 含 X25519MLKEM768。</p>
+
+                    <h3>OpenPGP</h3>
+                    <p>OpenPGP 自 2023 年分裂为 GPG（LibrePGP）与 IETF 标准两派，后量子互不兼容。<strong>RFC 9980</strong> 定义了混合算法（加密：ML-KEM-768+X25519 或 ML-KEM-1024+X448；签名：ML-DSA-65/87），需要 v6 密钥（GPG 不支持），但允许 v4 密钥配后量子子密钥。GPG 仅支持加密用的后量子密钥，且其协议信息混合方式异于标准，导致 Sequoia 无法互通。实务上 Red Hat 用双密钥（经典 + RFC 9980）签包。用户可转用 Sequoia 生成 v4 经典密钥与 v6 后量子密钥并互相签署。</p>
+
+                    <h3>唯一真正解决方案</h3>
+                    <p>作者戏谑地称"唯一真正解决方案"是"住进森林"。对大多数人而言，只需妥善配置 OpenSSL 与 OpenPGP，并关注量子攻击临界点。本文强调：<strong>加密的更新比签名更紧迫</strong>（今日加密的数据明日就可能被破译），但两者终需迁移。</p>
+                </div>
+            </div>
+
+            <!-- 专题文章 4 -->
+            <div class="article" id="article4">
+                <div class="article-header">
+                    <span class="article-category">内核 / 7.3 合并窗口</span>
+                    <h2>7.3 合并窗口开启</h2>
+                    <div class="article-meta">
+                        <span>作者：Jonathan Corbet</span>
+                        <span>2026年8月20日</span>
+                        <span><a href="https://lwn.net/Articles/1089244/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <p>7.3 合并窗口已拉入 2346 个非合并变更集（linux-next 仍有 12640 个待合并，窗口于 8 月 30 日关闭）。</p>
+
+                    <h3>架构相关</h3>
+                    <p>Alpha 获得 nolibc 支持；多款 32 位 ARM CPU 被弃用（7.3 LTS 仍支持）；Rust 新增 PowerPC 支持；x86 移除了" SMP alternatives"代码（不再维护单处理器补丁锁指令）。</p>
+
+                    <h3>核心内核</h3>
+                    <p>binfmt_misc 扩展出 BPF 钩子，可在运行时决定解释器（支持 hermetic binaries）；组调度（group scheduling）重大重构——新的 <code>cgroup_mode</code> 调试旋钮（smp/up/max/concur/tasks 模式，默认 <strong>concur</strong>），解决了大系统下权重缩放因子过小导致的失真问题；新的 <code>syscall_user_dispatch</code> sysctl 默认开启。</p>
+
+                    <h3>文件系统与块 I/O</h3>
+                    <p>移除了 EFS、FreeVxFS；新增 <strong>failfs</strong>（任何操作均失败，配 FD_FAILFS_ROOT 的 fchdir/fchroot）；overlayfs 支持 id-mapped mounts；内核支持在单块设备上挂载多个文件系统。</p>
+
+                    <h3>硬件支持</h3>
+                    <p>硬件监控新增 Apple SoC 电源管理；杂项新增 Qualcomm PASP TEE。</p>
+
+                    <h3>网络</h3>
+                    <p>新增 <code>bpf_sock_read_xattr()</code> kfunc，读取 socket inode 的 user.* 扩展属性（xattr）。</p>
+
+                    <h3>内部内核变更</h3>
+                    <p>iomap 层重构为单一 <code>iomap_next()</code> 迭代（文档滞后）；内核线程迁入 nullfs；内部加密库新增 AES 模式；Rust 支持持续增强（synchronize_rcu、内存屏障、中断、RCU 锁抽象）。</p>
+                    <div class="info-box note">
+                        <p><strong>预期</strong>：8 月 30 日窗口关闭后，还会有 7.3 其余变更的更新。本次早期拉取已显现调度器行为变化（默认 concur）与老旧文件系统退役，反映内核现代化清理的趋势。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 专题文章 5 -->
+            <div class="article" id="article5">
+                <div class="article-header">
+                    <span class="article-category">开发工具 / 命令行</span>
+                    <h2>用 Remind 在命令行玩老派日历</h2>
+                    <div class="article-meta">
+                        <span>作者：Joe Brockmeier</span>
+                        <span>2026年8月25日</span>
+                        <span><a href="https://lwn.net/Articles/1090376/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>中生代日历</h3>
+                    <p><strong>Remind</strong> 是 Dianne Skoll 于 1989 年末创建的命令行日历/提醒程序（GPLv2），包含主命令 <code>remind</code>、TkRemind 图形前端，以及 Rem2HTML/Rem2PDF 助手（C 编写，TkRemind 需要 Tcl/Tk）。项目基本由单人维护（仅 13 个外部提交），托管于 Forgejo（需 notabot 登录），并在 Codeberg/Salsa 镜像。多数发行版有包，但 Arch 缺少 tcllib 依赖。</p>
+
+                    <h3>Remind 脚本</h3>
+                    <p>Remind 使用自有脚本语言：<code>REM</code> 指令加日期规格（" Friday"表示每周、" 21 Aug 2026"表示指定日），<code>MSG</code> 输出文本，<code>%1</code> 作倒计时替换。<code>OMIT</code>+<code>SKIP</code> 处理假日例外；<code>RUN</code> 执行 shell（<code>ONCE</code> 防止重复运行）；<code>TODO</code> 做任务提醒（<code>++7</code> 提前七天）；<code>UNTIL</code> 设周期终点。支持变量、函数（sunrise/sunset/moontime）。模式含议程、月历（<code>-c</code>/<code>-cu</code> Unicode）、多周（<code>+N</code>）、JSON（<code>-ppp</code> 供 rem2pdf）。</p>
+
+                    <h3>寻找帮手</h3>
+                    <p>TkRemind 提供 GUI，但手动编写带 TAG 的条带并不方便。第三方助手包括 iCalendar 转换、CalDAV 同步、Emacs 模式、PHP Web 前端。邮件列表 remind-fans 与 OFTC IRC #remind 可供交流。它适合偏爱命令行/纯文本灵活性的人，但不适合企业共享日历场景。</p>
+                </div>
+            </div>
+
+            <!-- 专题文章 6 -->
+            <div class="article" id="article6">
+                <div class="article-header">
+                    <span class="article-category">桌面 / 开发工具</span>
+                    <h2>探视 Quickshell 桌面组件工具包</h2>
+                    <div class="article-meta">
+                        <span>作者：Tyler Langlois（贡献）</span>
+                        <span>2026年8月20日</span>
+                        <span><a href="https://lwn.net/Articles/1083090/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>一个高层工具包</h3>
+                    <p><strong>Quickshell</strong> 由 outfoxxed 创建（2024 年 6 月 v0.1，2026 年 6 月 v0.3，LGPLv3），用 QML/Qt 以声明式方式构建桌面组件（工具栏、菜单、系统托盘）。它被 caelestia-shell、DankMaterialShell 用于 Sway/niri 等极简窗口管理器。其优势在于 Qt 属性绑定（property binding）带来的响应式更新，免去了 GTK/Qt 底层编译迭代的延迟，可直接用 <code>.qml</code> 调用 PopupWindow、SystemTray、Pipewire 等类型。</p>
+
+                    <h3>shell 生态</h3>
+                    <p>在生态上，极简合成器用户需要自行组装组件，Quickshell 项目提供了中间方案（图形界面配非纯文本配置）。DankMaterialShell 支持插件与主题。部分功能依赖合成器协议（例如 Wayland 的 ext-background-effect 需要 niri 26.04+）。</p>
+
+                    <h3>类型宝藏</h3>
+                    <p>类型丰富：<code>Process</code> 运行命令、<code>UPower</code> 取电池百分比、<code>Networking</code>/<code>Bluetooth</code>/<code>Sockets</code> 提供高层属性。相较于原生 Qt/GTK，它牺牲了多语言后端控制能力，被限定在 JavaScript 脚本中。</p>
+
+                    <h3>QML 与声明式界面</h3>
+                    <p>QML 示例展示了：静态 <code>Text</code> 对象；<code>FloatingWindow</code> 内按钮递增 customData 并重绑文本；<code>GridView</code> 用 DesktopEntries 生成可滚动的应用启动器网格（Quickshell.iconPath、execDetached、Qt.quit）。该启动器可跨桌面移植。</p>
+
+                    <h3>结论</h3>
+                    <p>作者本人在 NixOS + niri 上使用 DankMaterialShell 作为默认，用 Quickshell 写小工具依然方便。作为年轻项目，偶尔会有版本漂移，但稳定性在提升。</p>
+                </div>
+            </div>
+
+            <!-- 简讯 -->
+            <div class="article" id="briefs">
+                <div class="article-header">
+                    <span class="article-category">社区简讯</span>
+                    <h2>📝 Brief items（社区简讯）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for August 27, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1089645/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>安全</h3>
+                    <h4>arrayref 的供应链攻击（Rust 博客）</h4>
+                    <p>Rust 博客<a href="https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/">报告</a>了一个名为 <code>proc-macro1</code> 的恶意 crate 被上传到 crates.io 仓库。团队发现，流行的 <code>arrayref</code> crate 最近被重新发布并改为依赖该恶意 crate，同时撤下了最新版本。他们已移除恶意版本并恢复被恶意撤销的版本；该作者名下的其他 crate（<code>internment</code>、<code>append-only-vec</code>）也受影响，已做同样处理并锁定账户以防万一。团队认为 <code>arrayref</code> 作者并非恶意，但其电脑或凭据很可能已被入侵，正尝试联系本人。</p>
+
+                    <h4>本周安全引述</h4>
+                    <blockquote>
+                        <p>"在 PSF 能够雇佣更多工程人员之前，PyPI 应当被视为一种供应链风险。我们的服务之上坐着软件行业的很大一部分。功能开发、日益增长的漏洞报告量，以及日常维护，目前由一名半全职员工和一名全职员工在 PyPI 支持请求上承担。"</p>
+                        <p>—— Jacob Coffee，Python 软件基金会工程总监</p>
+                    </blockquote>
+
+                    <h3>内核开发</h3>
+                    <h4>内核发布状态</h4>
+                    <p><strong>7.3 合并窗口仍开放</strong>，预计于 2026 年 8 月 30 日关闭。<strong>稳定版更新</strong>：7.1.10、6.18.46、6.12.105、6.6.153、6.1.184、5.15.217、5.10.266 于 8 月 23 日发布。较小的 7.2.1、7.1.11、6.18.47、6.12.106、6.6.154、6.1.185、5.15.218、5.10.267 更新均在审查流程中，预计 8 月 27 日推出。</p>
+
+                    <h4>悼念 Steve French</h4>
+                    <p>来自 Jeremy Allison 的<a href="https://www.linkedin.com/feed/update/urn:li:activity:7497016255946731520/">沉痛消息</a>：内核 SMB 文件系统代码维护者 Steve French 逝世。他维护该代码多年，仅在上周因健康问题才<a href="https://lwn.net/ml/all/20260818140738.314254-1-pc@manguebit.org/">卸任</a>。"我认识 Steve 超过 20 年。他是社区里的传奇，也是真正的好朋友。我们会非常想念他。一路走好，Steve。" 他将被深深怀念。</p>
+
+                    <h4>mklinux v7.0-mk2 发布</h4>
+                    <p>想试验<a href="https://lwn.net/Articles/1038847/">多内核 Linux 概念</a>的人有福了，Cong Wang <a href="https://lwn.net/ml/all/ao34RJ7aZ2BLd67S@pop-os.localdomain">宣布</a>发布 mklinux v7.0-mk2。它让一台机器在裸金属上同时运行多个独立 Linux 内核，无需虚拟机监视器（hypervisor）。宿主内核拥有一池 CPU、内存与 PCI 设备，将池切分为实例，并通过 kexec_file_load() 为每个实例启动一个衍生内核；每个衍生内核在其自身的 CPU、物理内存与设备上原生运行，没有模拟也没有陷入（trap），唯一共享的是你选择共享的部分。注意这不是旧的 MkLinux（那个项目是移植到 PowerPC Macintosh 的）。</p>
+
+                    <h4>本周引述</h4>
+                    <blockquote>
+                        <p>"我预计我们下一个发布版本的方向，会是对评审再做一点微调，但开始把重心转向让 LLM 来承担那些繁琐活——管理 patchwork、自动化常见的流程抱怨、编辑提交说明，也许还会应用那些已经拿到我们信任之人 'reviewed-by' 标签的补丁……"</p>
+                        <p>—— Jakub Kicinski</p>
+                    </blockquote>
+                    <blockquote>
+                        <p>"多年来我们忍受着满屏毫无解释的单行提交说明。现在我们得到满屏无用的噪声。我不知道在这方面我们是否赢下了什么。"</p>
+                        <p>—— Christian Brauner</p>
+                    </blockquote>
+
+                    <h3>发行版</h3>
+                    <h4>Armbian 26.8 发布</h4>
+                    <p>面向 Arm 硬件的 <a href="https://armbian.com/">Armbian</a> 发行版<a href="https://blog.armbian.com/armbian-release-26-8/">发布 26.8 版</a>。三块较大的改动同时落地：安装器被重写；Armbian Imager 达到 2.0；CI 从原仓库迁出到专为工作构建的仓库。安装器重写是最先被注意到的——它现在作为 armbian-config 模块发布，与 armbian-config 其余部分一样有单元测试，可面向 SPI 与 MTD，将 eMMC 与 NVMe 作为独立流程处理，能独立刷写 bootloader，并且（这点早该有）在 bootloader 写入失败时报错，而不是打印" Done."然后留给你在下次启动时才发现。</p>
+
+                    <h4>Vanilla OS 3 发布</h4>
+                    <p>不可变桌面 Linux 发行版 <a href="https://vanillaos.org/blog/article/2026-08-24/vanilla-os-3-reunion---stable-release">Vanilla OS 3</a> 发布。显著变化包括支持 Arm64、引入 <a href="https://github.com/Vanilla-OS/sdk#vanilla-os-sdk">Vanilla OS SDK</a>、用新 SDK 重写了 <a href="https://github.com/Vanilla-OS/apx#apx">Apx 包管理器</a>等。LWN 曾在 2024 年<a href="https://lwn.net/Articles/989629/">报道</a>过 Vanilla OS 2。</p>
+
+                    <h4>本周发行版引述</h4>
+                    <blockquote>
+                        <p>"那么，庞大的硬件能解决漫长的 RPM 构建时间吗？只能边际性地解决，而且要付出天文数字般的成本。现实是，单纯的硬件规模从根本上受软件架构瓶颈限制。无论 rpmbuild 本身，还是 %build 段里的维护者代码，都无法高效映射到极限的、大规模并行。你会极快地撞上 Amdahl 定律。"</p>
+                        <p>—— Miroslav Suchý</p>
+                    </blockquote>
+
+                    <h3>开发</h3>
+                    <h4>Emacs 31.1 发布</h4>
+                    <p>Emacs 编辑器 31.1 版发布。改动清单很长，包括移除 <a href="https://lwn.net/Articles/707615/">Emacs dumper</a>、新的用户 Lisp 目录特性、<code>context-menu-mode</code> 下的"发送到……"菜单项等；详见 <a href="https://www.gnu.org/software/emacs/news/NEWS.31.1">NEWS 文件</a>。《Mastering Emacs》作者 Mickey Petersen 也<a href="https://www.masteringemacs.org/article/whats-new-in-emacs-311">梳理</a>了本版的一些生活质量改进。</p>
+
+                    <h4>KDE Gear 26.08 发布</h4>
+                    <p><a href="https://en.wikipedia.org/wiki/KDE_Gear">KDE Gear</a> 应用集合<a href="https://kde.org/announcements/gear/26.08.0/">发布 26.08 版</a>。显著变化包括 <a href="https://docs.kde.org/stable_kf6/en/okular/okular/signatures.html">Okular</a> 的签名功能改进、<a href="https://apps.kde.org/dolphin/">Dolphin</a> 文件管理器的文件分组功能增强，以及 <a href="https://kdenlive.org/">Kdenlive</a> 视频编辑器的多项增强。</p>
+
+                    <h4>LibreOffice 26.8 发布</h4>
+                    <p><a href="https://blog.documentfoundation.org/blog/2026/08/26/libreoffice-26-8/">LibreOffice 26.8 发布</a>。本版聚焦三个领域：套件产出的排版质量、其正确处理的书写系统范围，以及文档与其他办公套件交换时的保真度。最大的单块工作处理双向与复杂文本：Writer 现在在打开或粘贴文档/纯文本时自动检测段落方向；换行按段落方向而非相邻字符方向放置行尾空格；对象缩放手柄在从右到左与竖排 CJK 文档中表现正确；双向控制字符现在与其他格式标记一起可见。在 Calc 中，向空单元格输入从右到左文本会自动设置该单元格方向。</p>
+
+                    <h4>RPM 6.1.0 发布</h4>
+                    <p><a href="https://rpm.org/">RPM 包管理器</a><a href="https://rpm.org/releases/6.1.0">发布 6.1.0</a>。显著变化包括可在定义时为 <a href="https://rpm.org/docs/6.1.x/man/rpm-macros.7">RPM 宏</a>提供修饰符、改进构建与验证的错误处理、支持用 PKCS11 令牌配合 <code>rpmsign</code> 签名文件，以及新增若干 man 页。6.1.0 还首次采用了受 Linux 内核启发的新发布模型。</p>
+
+                    <h4>本周开发引述</h4>
+                    <blockquote>
+                        <p>"我们需要一套'干净'的基础工具，即建立在一群理解其构建方式的人之上的工具。也许这很天真甚至不可能。Linux 内核和 GCC 尤其已是巨型项目，早已超出单个人理解的范围。但当时的理念是，一个人类社区能够集体地理解。……现在我们似乎在举手投降，把社区放弃了。以为 LLM 会直接解决问题——无论是什么问题。但我们都在一次'抽地毯'（rug pull） away 就可能彻底无力管理这些项目。……我担心 LLM 的抽地毯会更糟：且不说 Linus 将无法使用他的'tireless helper'来修复晦涩的内核 bug；我们看到的是一场如此巨大的经济崩塌，以至于已经在谈论救助那些责任公司。"</p>
+                        <p>—— Antoine Beaupré</p>
+                    </blockquote>
+                </div>
+            </div>
+
+            <!-- 公告 -->
+            <div class="article" id="announcements">
+                <div class="article-header">
+                    <span class="article-category">公告</span>
+                    <h2>📢 Announcements（公告）</h2>
+                    <div class="article-meta">
+                        <span>LWN.net Weekly Edition for August 27, 2026</span>
+                        <span><a href="https://lwn.net/Articles/1089646/" target="_blank">英文原文</a></span>
+                    </div>
+                </div>
+                <div class="article-body">
+                    <h3>新闻简报（Newsletters）</h3>
+                    <p><strong>发行版与系统管理</strong>：DistroWatch Weekly（8 月 24 日）、This week in Fedora（8 月 24 日）、openSUSE Tumbleweed Review of the Week（8 月 21 日）、Ubuntu Weekly News（8 月 17 日，第 958 期）。</p>
+                    <p><strong>开发</strong>：Emacs News（8 月 24 日）；These Weeks in Firefox（8 月 25 日，Issue 206，聚焦图标）；What's cooking in git.git（8 月 20 日与 8 月 24 日两期）；GNU Tools Weekly News（8 月 23 日）；Last Week in Kubernetes Development（8 月 20 日）；LLVM Weekly（8 月 24 日，Issue 660）；This Week in Matrix（8 月 21 日）；OCaml Weekly News（8 月 25 日）；Perl Weekly（8 月 24 日，第 787 期）；This Week in Plasma（8 月 22 日）；PyCoder's Weekly（8 月 25 日，第 749 期）；Weekly Rakudo News（8 月 25 日）；This Week in Rust（8 月 19 日，第 665 期）；Wikimedia Tech News（8 月 24 日）。</p>
+                    <p><strong>会议记录</strong>：Fedora FESCo meeting minutes（8 月 25 日）。</p>
+
+                    <h3>演讲征集（Calls for Presentations）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>截止日期</th><th>活动日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 31 日</td><td>10 月 2–4 日</td><td>GNU Tools Cauldron</td><td>布拉格，捷克</td></tr>
+                            <tr><td>8 月 31 日</td><td>10 月 3–4 日</td><td>Linux Days 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>10 月 6 日</td><td>Real-time Linux User Forum</td><td>布拉格，捷克</td></tr>
+                            <tr><td>9 月 6 日</td><td>次年 1 月 20–22 日</td><td>Everything Open</td><td>布里斯班，澳大利亚</td></tr>
+                            <tr><td>9 月 18 日</td><td>9 月 19 日</td><td>Software Freedom Day NJ</td><td>蒙特克莱尔，美国</td></tr>
+                            <tr><td>10 月 1 日</td><td>11 月 7–8 日</td><td>OpenFest 2026</td><td>索非亚，保加利亚</td></tr>
+                            <tr><td>10 月 1 日</td><td>11 月 12–13 日</td><td>Ubuntu Summit 26.10</td><td>线上</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>即将举行的活动（Upcoming Events）</h3>
+                    <table>
+                        <thead>
+                            <tr><th>日期</th><th>活动名称</th><th>地点</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>8 月 25–30 日</td><td>MiniDebConf and MiniDebCamp Winterthur 2026</td><td>温特图尔，瑞士</td></tr>
+                            <tr><td>8 月 30 日–9 月 5 日</td><td>FOSS4G Hiroshima 2026</td><td>广岛，日本</td></tr>
+                            <tr><td>9 月 8–10 日</td><td>RustConf 2026</td><td>蒙特利尔，加拿大</td></tr>
+                            <tr><td>9 月 17–18 日</td><td>Git Merge</td><td>里斯本，葡萄牙</td></tr>
+                            <tr><td>9 月 19 日</td><td>Software Freedom Day NJ</td><td>蒙特克莱尔，美国</td></tr>
+                            <tr><td>9 月 19–20 日</td><td>Nextcloud Community Conference 2026</td><td>柏林，德国</td></tr>
+                            <tr><td>9 月 19–24 日</td><td>Akademy 2026</td><td>格拉茨，奥地利</td></tr>
+                            <tr><td>9 月 22–24 日</td><td>Kernel Recipes</td><td>巴黎，法国</td></tr>
+                            <tr><td>9 月 22–24 日</td><td>Reproducible Builds Summit</td><td>哥德堡，瑞典</td></tr>
+                            <tr><td>9 月 25–27 日</td><td>PostmarketOS and Alpine Linux Conference</td><td>亚琛，德国</td></tr>
+                            <tr><td>9 月 28–30 日</td><td>X.Org Developers Conference</td><td>多伦多，加拿大</td></tr>
+                            <tr><td>9 月 28 日–10 月 1 日</td><td>Alpine Linux Persistence and Storage Summit</td><td>Lizumerhütte，蒂罗尔，奥地利</td></tr>
+                            <tr><td>9 月 30 日–10 月 1 日</td><td>All Systems Go! 2026</td><td>柏林，德国</td></tr>
+                            <tr><td>10 月 1–2 日</td><td>embedded Linux for Safe and Secure Applications</td><td>哥廷根，德国</td></tr>
+                            <tr><td>10 月 1 日</td><td>Open Tech Day | Software-defined Storage</td><td>纽伦堡，德国</td></tr>
+                            <tr><td>10 月 2–4 日</td><td>GNU Tools Cauldron</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 3–4 日</td><td>openSUSE.Asia Summit 2026</td><td>日惹，印度尼西亚</td></tr>
+                            <tr><td>10 月 3–4 日</td><td>Linux Days 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 5–7 日</td><td>Linux Plumbers Conference 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 6 日</td><td>Yocto Project Developer Day 2026</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 6 日</td><td>Real-time Linux User Forum</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 7–9 日</td><td>Open Source Summit Europe</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 7–9 日</td><td>Embedded Linux Conference Europe</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 8 日</td><td>Linux Security Summit Europe</td><td>布拉格，捷克</td></tr>
+                            <tr><td>10 月 14–17 日</td><td>PyCon South Africa</td><td>开普敦，南非</td></tr>
+                            <tr><td>10 月 16–18 日</td><td>VideoLAN Developers' Days</td><td>罗马，意大利</td></tr>
+                            <tr><td>10 月 18–20 日</td><td>All Things Open</td><td>罗利，美国</td></tr>
+                            <tr><td>10 月 20–23 日</td><td>PostgreSQL Conference Europe</td><td>瓦伦西亚，西班牙</td></tr>
+                            <tr><td>10 月 20–23 日</td><td>The Matrix Conference</td><td>马尔默，瑞典</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>安全更新（Security updates）</h3>
+                    <p>本期涵盖 8 月 20 日至 8 月 26 日期间各发行版发布的大量安全公告（完整条目见 <a href="https://lwn.net/Articles/1090733/">LWN 安全公告摘要</a>），涉及 AlmaLinux、Debian（含 stable 与 LTS）、Fedora、Gentoo、Mageia、Oracle、Red Hat、Slackware、SUSE、Ubuntu。受影响软件包广泛，例如：内核、.NET、bind、curl、firefox、gstreamer 插件、java-openjdk、kernel、libgit2、nginx、nodejs、openssl、php、python、qemu、rsync、samba、sqlite、thunderbird、webkit2gtk、zfs 等。其中 Debian 发布了 chromium、designate、erlang、firefox-esr、freecad、gst-plugins-bad、kernel、libgit2、libnet-dns-perl、nvidia 驱动、openjdk、openssl、sabnzbdplus、spip、swift、thunderbird、webkit2gtk、zfs-linux 等多项 stable/LTS 公告。</p>
+
+                    <h3>内核补丁精选（Kernel patches of interest）</h3>
+                    <p>本期（8 月 19–26 日）内核相关补丁数量庞大，以下按类别择要摘录，完整列表见 <a href="https://lwn.net/Articles/1089646/">LWN Announcements 页面</a>。</p>
+
+                    <h4>内核发布</h4>
+                    <ul>
+                        <li>Linux 7.1.10、6.18.46、6.12.105、6.6.153、6.1.184、5.15.217、5.10.266（Greg Kroah-Hartman，8 月 23 日）；5.15.216-rt98（Joseph Salisbury，8 月 22 日）。</li>
+                    </ul>
+
+                    <h4>架构相关</h4>
+                    <ul>
+                        <li>arm64 暴露 CPU 预取与缓存调节控制；crash 重构并新增 arm64 crash hotplug 支持；AMD IOMMU 新增 GAPPI 支持；x86 通过 prctl 支持 shstk；启用 TDX 模块扩展；perf 支持 SIMD/eGPRs/SSP 寄存器采样；perf/KVM 为 x86 支持 PMU 分区。</li>
+                    </ul>
+
+                    <h4>核心内核</h4>
+                    <ul>
+                        <li>bpf 为 linux_binprm 添加用户内存访问 kfuncs；sysctl 添加模块别名；cgroup 向 BPF 暴露 cpu.stat 与 io.stat；coredump 按请求选择内存类型；unwind_user 实现 .eh_frame 处理；tracing wprobe x86 添加 watchpoint wprobe；bpf arena 在缺页时处理 memory.max 与 reclaim/OOM；bpf 允许 arena 指针用于按值返回；sched 引入 steal_governor 首选 CPU 与 steal 驱动的 vCPU 退避；hrtimer 添加过期注入回调变体；sched/core PROXY_EXEC 中睡眠所有者处理的替代方法。</li>
+                    </ul>
+
+                    <h4>开发工具</h4>
+                    <ul>
+                        <li>rv 添加任务延迟超预算 RV 监视器；bpf 在 JIT 程序中添加 KASAN 检查支持；selftests/mm 修复 TAP 输出与全局状态；支持 nommu 平台上的 kselftest；sched/debug 引入每 CPU debugfs 文件；configfs 添加基本 selftest。</li>
+                    </ul>
+
+                    <h4>设备驱动（择要）</h4>
+                    <ul>
+                        <li>power reset 添加 PSCRR 的 NVMEM recorder provider；drm/tyr GPU 重置基础设施；HID asus 添加 ROG Ally 掌机支持；RZ/G 系列、Qualcomm、Raspberry Pi、Apple、NVIDIA 等驱动新增或增强；ZTE zx297520v3 时钟驱动；Broadcom BCM2712 IOMMU 驱动；RZ/G3L DU/LVDS/DSI 支持。</li>
+                    </ul>
+
+                    <h4>设备驱动基础设施</h4>
+                    <ul>
+                        <li>PM QoS/pmdomains 支持系统级 PM 的恢复延迟；rust leds 添加 led classdev 抽象；leds 添加硬件发起的硬件控制触发转换支持；异步关闭设备；PCI/P2PDMA 修复 ACS 出口控制处理；drm/fabric 规模扩展加速器互联的供应商中立拓扑基础设施；swiotlb 避免网络套接字上的 swiotlb 拷贝；Rust 添加运行时 PM 支持；iommu 添加连续 MSI 映射支持；rust usb 主机端 bulk-endpoint 驱动抽象与 USB 显示驱动核心抽象。</li>
+                    </ul>
+
+                    <h4>文档</h4>
+                    <ul>
+                        <li>sched 记录 WF_SYNC 唤醒放置语义；man-pages-6.19 发布。</li>
+                    </ul>
+
+                    <h4>文件系统与块层</h4>
+                    <ul>
+                        <li>fuse 允许特权用户空间服务器使用 FUSE_SYNCFS；f2fs 引入元数据缓存、启用缓冲 RWF_DONTCACHE；ceph kclient 添加 'lazyio' 挂载选项；jffs2 将写验证扩展到所有写路径；block nvme 支持同 LBA 多路径限制堆叠；blk-cgroup 用 blkcg_mutex 保护 blkgs；vfs 为 open*(2) 添加 O_CREAT|O_DIRECTORY；ksmbd 实现持续可用（CA）共享支持；netfs 在分段 bio_vec[] 链中跟踪 folios；btrfs 在 xattrs 中添加每 inode 压缩级别；nfsd 通过 Netlink 暴露 NFSv4 客户端状态；修复负 dentry 易修复部分；ceph 将内联数据路径转换为 folios；f2fs 支持并优化可写文件的大 folios。</li>
+                    </ul>
+
+                    <h4>内存管理</h4>
+                    <ul>
+                        <li>bpf 驱动的主动 memcg 回收；mm/huge_memory 清理 folio 拆分并提升 swapcache 拆分限制；mm/vmscan 按类型遵守节点回收限制；mm/mglru 加速 inc_min_seq 并修复冷热反转；mm/cma 使用每区域计数器将 cma 分配计入 memcg；userfaultfd 将 uffd 模式与 VMA 标志解耦；mm/fbatch 排空 lru_add_drain；mm/mglru 抑制老化期间空页表遍历；mm 为 HugeTLB 引入基于段的 vmemmap 优化；mm compaction mTHP 友好内存压缩；虚拟交换空间（交换表版）；guest_memfd 就地转换支持。</li>
+                    </ul>
+
+                    <h4>网络</h4>
+                    <ul>
+                        <li>psp 使用 virt cookie 作为 Rx 转向提示；显式 TSO 段计数。</li>
+                    </ul>
+
+                    <h4>安全相关</h4>
+                    <ul>
+                        <li>BPF keyring 与签名加载器 ML-DSA 支持；添加 X.509 CRL 支持；proc/security/selinux 让 SELinux 阻止 /proc/self/mem 的 FOLL_FORCE；rust crypto AES/CMAC/SHA-256/HMAC/RSA 绑定。</li>
+                    </ul>
+
+                    <h4>虚拟化与容器</h4>
+                    <ul>
+                        <li>Hyper-V 为 Linux 客户机添加半虚拟化 IOMMU 支持；KVM nSVM 为嵌套客户机启用 DecodeAssists；mshv 为 MSHV 根分区添加 SEV-SNP 支持；KVM arm64 添加 KVM_PRE_FAULT_MEMORY 支持；KVM VMX 强化以防止将 TDX vCPU 解释为 vcpu_vmx。</li>
+                    </ul>
+
+                    <h4>杂项</h4>
+                    <ul>
+                        <li>coredump 允许在 coredump socket 上创建稀疏 coredump；perf trace 符号化内核虚拟地址与函数指针；rust 添加 <code>Ownable</code> trait 与 <code>Owned</code> 类型。</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <!-- 期刊导航 NAV-START -->
+        <nav class="nav-bar bottom" aria-label="期刊导航">
+            <a class="nav-btn" href="index.html">🏠 主页</a>
+            <a class="nav-btn nav-current" href="2026-08-27.html">📰 最新</a>
+            <a class="nav-btn" href="2026-08-20.html">← 上一个</a>
+            <span class="nav-btn nav-disabled">下一个 →</span>
+            <span class="nav-current-label">2026年8月27日</span>
+        </nav>
+        <!-- 期刊导航 NAV-END -->
+
+        <footer class="footer">
+            <p>内容翻译自 <a href="https://lwn.net" target="_blank">LWN.net</a>，遵循 Creative Commons 协议。</p>
+            <p>本期来源：<a href="https://lwn.net/Articles/1089643/" target="_blank">LWN.net Weekly Edition for August 27, 2026</a></p>
+            <p>更新时间：2026年9月4日</p>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const themeIcon = themeToggle.querySelector('.theme-icon');
+
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateIcon(currentTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            themeIcon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    </script>
+</body>
+</html>
